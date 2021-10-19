@@ -1,0 +1,7 @@
+L 10/19/2021 - 22:39:00: SMC parsing error on line 0
+L 10/19/2021 - 22:39:00:   [0]  URL: http://godtony.mooo.com/updater/updater.txt
+L 10/19/2021 - 22:39:00:   [1]  ERROR: Line contained too many invalid tokens
+L 10/19/2021 - 22:39:00: Update available for "Steph's AntiCheat (StAC)" (stac.smx). Current: 5.1.0 - Latest: 5.1.1
+L 10/19/2021 - 22:39:00:   [0]  Changes in 5.1.1
+L 10/19/2021 - 22:39:00:   [1]  - misc fixes
+L 10/19/2021 - 22:39:01: Successfully updated and installed "Steph's AntiCheat (StAC)".
