@@ -28,4 +28,5 @@
 !tf2/tf/cfg/server.cfg
 // Allow SourceMod CFGs
 !tf2/tf/cfg/sourcemod/**
+tf2/tf/addons/sourcemod/logs/*
 /////////////

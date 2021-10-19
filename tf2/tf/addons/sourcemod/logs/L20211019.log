@@ -5,3 +5,9 @@ L 10/19/2021 - 22:39:00: [stac.smx] [StAC] StAC directory not extant! Creating..
 L 10/19/2021 - 22:45:20: SourceMod log file session started (file "/hlserver/tf2/tf/addons/sourcemod/logs/L20211019.log") (Version "1.10.0.6516")
 L 10/19/2021 - 22:45:20: [stac.smx] [StAC] File handle invalid!
 L 10/19/2021 - 22:45:20: [stac.smx] [StAC] Plugin vers. ---- 5.1.0 ---- loaded
+L 10/19/2021 - 22:46:56: SourceMod log file session started (file "/hlserver/tf2/tf/addons/sourcemod/logs/L20211019.log") (Version "1.10.0.6516")
+L 10/19/2021 - 22:46:56: [stac.smx] [StAC] File handle invalid!
+L 10/19/2021 - 22:46:56: [stac.smx] [StAC] Plugin vers. ---- 5.1.1 ---- loaded
+L 10/19/2021 - 22:47:55: -------- Mapchange to pd_watergate --------
+L 10/19/2021 - 22:47:59: [basecommands.smx] "Console<0><Console><Console>" changed cvar (cvar "mp_waitingforplayers_time") (value "45")
+L 10/19/2021 - 22:48:12: [basecommands.smx] "Aar<2><[U:1:89189905]><>" console command (cmdline "say t")
