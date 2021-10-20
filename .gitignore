@@ -2,7 +2,7 @@
 *
 !*/
 # Don't track log files
-**.log
+*.log
 tf2/tf/addons/sourcemod/logs/
 
 # Updating #
