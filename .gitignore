@@ -1,9 +1,10 @@
 # Don't track ANYTHING by default
 *
 !*/
+
 # Don't track log files
 *.log
-tf2/tf/addons/sourcemod/logs/
+/tf2/tf/addons/sourcemod/logs/
 
 # Updating #
 
