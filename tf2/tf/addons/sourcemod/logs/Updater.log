@@ -44,3 +44,6 @@ L 10/20/2021 - 03:12:32:   [1]  ERROR: Line contained too many invalid tokens
 L 10/20/2021 - 03:14:56: SMC parsing error on line 0
 L 10/20/2021 - 03:14:56:   [0]  URL: http://godtony.mooo.com/updater/updater.txt
 L 10/20/2021 - 03:14:56:   [1]  ERROR: Line contained too many invalid tokens
+L 10/20/2021 - 03:37:27: SMC parsing error on line 0
+L 10/20/2021 - 03:37:27:   [0]  URL: http://godtony.mooo.com/updater/updater.txt
+L 10/20/2021 - 03:37:27:   [1]  ERROR: Line contained too many invalid tokens
