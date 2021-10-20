@@ -3,6 +3,7 @@
 !*/
 // Don't track log files
 **.log
+tf2/tf/addons/sourcemod/logs/
 
 // Updating //
 
@@ -27,6 +28,5 @@
 // Allow server.cfg
 !tf2/tf/cfg/server.cfg
 // Allow SourceMod CFGs
-!tf2/tf/cfg/sourcemod/**
-tf2/tf/addons/sourcemod/logs/**.log
+!tf2/tf/cfg/sourcemod/
 /////////////
