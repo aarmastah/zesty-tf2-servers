@@ -19,3 +19,7 @@ L 10/20/2021 - 03:12:25: SourceMod error session started
 L 10/20/2021 - 03:12:25: Info (map "pd_watergate") (file "/hlserver/tf2/tf/addons/sourcemod/logs/errors_20211020.log")
 L 10/20/2021 - 03:12:25: [SM] Unable to load plugin "groundfix.smx": Required extension "dhooks" file("dhooks.ext") not running
 L 10/20/2021 - 03:12:25: [SM] Unable to load plugin "tf2-comp-fixes.smx": Required extension "dhooks" file("dhooks.ext") not running
+L 10/20/2021 - 03:14:48: SourceMod error session started
+L 10/20/2021 - 03:14:48: Info (map "pd_watergate") (file "/hlserver/tf2/tf/addons/sourcemod/logs/errors_20211020.log")
+L 10/20/2021 - 03:14:48: [SM] Unable to load plugin "groundfix.smx": Required extension "dhooks" file("dhooks.ext") not running
+L 10/20/2021 - 03:14:48: [SM] Unable to load plugin "tf2-comp-fixes.smx": Required extension "dhooks" file("dhooks.ext") not running
