@@ -14,3 +14,7 @@ L 10/20/2021 - 02:34:30: SourceMod log file session started (file "/hlserver/tf2
 L 10/20/2021 - 02:34:30: [stac.smx] [StAC] File handle invalid!
 L 10/20/2021 - 02:34:30: [stac.smx] [StAC] Plugin vers. ---- 5.1.1 ---- loaded
 L 10/20/2021 - 02:34:37: [basecommands.smx] "Console<0><Console><Console>" changed cvar (cvar "mp_waitingforplayers_time") (value "45")
+L 10/20/2021 - 03:12:25: SourceMod log file session started (file "/hlserver/tf2/tf/addons/sourcemod/logs/L20211020.log") (Version "1.10.0.6516")
+L 10/20/2021 - 03:12:25: [stac.smx] [StAC] File handle invalid!
+L 10/20/2021 - 03:12:25: [stac.smx] [StAC] Plugin vers. ---- 5.1.1 ---- loaded
+L 10/20/2021 - 03:12:32: [basecommands.smx] "Console<0><Console><Console>" changed cvar (cvar "mp_waitingforplayers_time") (value "45")
