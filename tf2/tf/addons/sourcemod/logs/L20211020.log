@@ -3,3 +3,17 @@ L 10/20/2021 - 19:17:20: [stac.smx] [StAC] File handle invalid!
 L 10/20/2021 - 19:17:20: [stac.smx] [StAC] Plugin vers. ---- 5.1.1 ---- loaded
 L 10/20/2021 - 19:17:30: [stac.smx] [StAC] StAC directory not extant! Creating...
 L 10/20/2021 - 19:17:30: [basecommands.smx] "Console<0><Console><Console>" changed cvar (cvar "mp_waitingforplayers_time") (value "45")
+L 10/20/2021 - 19:23:54: SourceMod log file session started (file "/hlserver/tf2/tf/addons/sourcemod/logs/L20211020.log") (Version "1.10.0.6516")
+L 10/20/2021 - 19:23:54: [stac.smx] [StAC] File handle invalid!
+L 10/20/2021 - 19:23:54: [stac.smx] [StAC] Plugin vers. ---- 5.1.1 ---- loaded
+L 10/20/2021 - 19:24:03: [basecommands.smx] "Console<0><Console><Console>" changed cvar (cvar "mp_waitingforplayers_time") (value "45")
+L 10/20/2021 - 19:24:56: [basecommands.smx] "Aar<3><[U:1:89189905]><>" console command (cmdline "say test")
+L 10/20/2021 - 19:25:21: [mapchooser.smx] Starting map vote because outside request
+L 10/20/2021 - 19:25:21: [mapchooser.smx] Voting for next map has started.
+L 10/20/2021 - 19:25:23: [mapchooser.smx] Voting for next map has finished. Nextmap: cp_powerhouse.
+L 10/20/2021 - 19:25:25: [SM] Changed map to "cp_powerhouse"
+L 10/20/2021 - 19:25:26: -------- Mapchange to cp_powerhouse --------
+L 10/20/2021 - 19:25:32: [basecommands.smx] "Console<0><Console><Console>" changed cvar (cvar "mp_waitingforplayers_time") (value "45")
+L 10/20/2021 - 19:26:51: [stac.smx] [StAC] File handle invalid!
+L 10/20/2021 - 19:26:51: [stac.smx] [StAC] Plugin vers. ---- 5.1.1 ---- unloaded
+L 10/20/2021 - 19:26:51: Log file closed.
