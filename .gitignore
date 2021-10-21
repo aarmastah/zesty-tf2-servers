@@ -23,6 +23,7 @@
 
 # Allow all addons and their accompanying files
 !tf2/tf/addons/**
+!web/**
 # Don't allow logs
 tf2/tf/addons/sourcemod/logs/**
 # Custom #
