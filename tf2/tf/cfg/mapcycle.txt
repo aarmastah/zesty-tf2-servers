@@ -10,6 +10,7 @@ cp_gorge
 cp_mercenarypark
 cp_mountainlab
 cp_steel
+cp_junction
 
 pl_badwater
 pl_barnblitz
