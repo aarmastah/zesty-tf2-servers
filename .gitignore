@@ -3,6 +3,7 @@
 !*/
 # Don't track log files
 *.log
+*.dmp
 # Allow this file
 !.gitignore
 
