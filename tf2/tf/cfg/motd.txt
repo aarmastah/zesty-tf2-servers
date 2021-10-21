@@ -1,7 +1,9 @@
-Welcome to Zesty Jesus' TF2 Server(s)!
+Welcome to Zesty's Server(s)!
 
+Rule: Don't cheat.
+General advice: Treat others how YOU want to be treated. 
+Abide by these two things and you're welcome here.
 
-Right now, this is just a test. Please leave feedback on how to make the server better.
 Our map rotation is:
 
 cp_coldfront

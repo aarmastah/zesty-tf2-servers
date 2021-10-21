@@ -1,0 +1,4 @@
+- test if bans are universal between servers
+- some players reporting lag spikes?
+- !nominate does not do anything
+- implement native votes
