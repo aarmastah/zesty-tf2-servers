@@ -26,12 +26,19 @@
 !web/**
 # Don't allow logs
 tf2/tf/addons/sourcemod/logs/**
+
+
 # Custom #
 
 # Allow mapcycle
 !tf2/tf/cfg/mapcycle.txt
 !tf2/tf/cfg/maplist.cfg
+
 # Allow server config
 !tf2/tf/cfg/server.cfg
+
 # Allow SourceMod CFGs
 !tf2/tf/cfg/sourcemod/**
+
+# Allow cp_george as a random cp_gorge replacement
+!tf2/tf/maps/cp_george_rc5
