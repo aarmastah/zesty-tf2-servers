@@ -1,0 +1,34 @@
+# Don't track ANYTHING by default
+*
+!*/
+# Don't track log files
+*.log
+# Allow this file
+!.gitignore
+
+
+# Updating #
+
+#Allow steamcmd scripts for updating and launching the server
+!tf2_ds.txt
+!tf.sh
+!update.sh
+!init.sh
+!README.md
+
+
+# Addons #
+
+# Allow all addons and their accompanying files
+!tf2/tf/addons/**
+# Don't allow logs
+tf2/tf/addons/sourcemod/logs/**
+# Custom #
+
+# Allow mapcycle
+!tf2/tf/cfg/mapcycle.txt
+!tf2/tf/cfg/maplist.cfg
+# Allow server config
+!tf2/tf/cfg/server.cfg
+# Allow SourceMod CFGs
+!tf2/tf/cfg/sourcemod/**
