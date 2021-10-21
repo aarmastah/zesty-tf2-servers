@@ -36,11 +36,14 @@
 
 #include "include/nativevotes.inc"
 
+new EngineVersion:g_EngineVersion = Engine_Unknown;
+
 #include "nativevotes/data-keyvalues.sp"
 
 #define LOGTAG "NV"
 
-#define MAX_DETAILS_SIZE					64
+#define MAX_VOTE_DETAILS_LENGTH				256		// This is higher than Source SDK 2013 says, but...
+#define TRANSLATION_LENGTH					192
 
 #define VOTE_DELAY_TIME 					3.0
 
@@ -48,9 +51,9 @@
 #define VOTE_NOT_VOTING 					-2
 #define VOTE_PENDING 						-1
 
-#define VERSION 							"0.7.9"
+#define VERSION 							"0.8.3"
 
-#define MAX_VOTE_ISSUES						20
+#define MAX_VOTE_ISSUES					20
 #define VOTE_STRING_SIZE					32
 
 //----------------------------------------------------------------------------
@@ -66,8 +69,6 @@
 // Global Variables
 new g_NextVote = 0;
 
-new g_VoteController;
-
 //----------------------------------------------------------------------------
 // CVars
 new Handle:g_Cvar_VoteHintbox;
@@ -80,8 +81,8 @@ new Handle:g_Cvar_VoteDelay;
 
 // Public Forwards
 
-new Handle:g_Forward_OnCallVoteSetup;
-new Handle:g_Forward_OnCallVote;
+//new Handle:g_Forward_OnCallVoteSetup;
+//new Handle:g_Forward_OnCallVote;
 
 //----------------------------------------------------------------------------
 // Used to track current vote data
@@ -93,9 +94,13 @@ new g_TotalClients;
 new g_Items;
 new Handle:g_hVotes;
 new Handle:g_hCurVote;
+new g_curDisplayClient = 0;
+new String:g_newMenuTitle[TRANSLATION_LENGTH];
+new g_curItemClient = 0;
+new String:g_newMenuItem[TRANSLATION_LENGTH];
+
 new bool:g_bStarted;
 new bool:g_bCancelled;
-new bool:g_bWasCancelled;
 new g_NumVotes;
 new g_VoteTime;
 new g_VoteFlags;
@@ -118,13 +123,16 @@ public Plugin:myinfo =
 
 public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 {
-	if (!Game_IsGameSupported())
+	MarkNativeAsOptional("GetUserMessageType");
+	MarkNativeAsOptional("GetEngineVersion");
+	
+	new String:engineName[64];
+	if (!Game_IsGameSupported(engineName, sizeof(engineName)))
 	{
-		strcopy(error, err_max, "Unsupported game");
+		Format(error, err_max, "Unsupported game: %s", engineName);
+		//strcopy(error, err_max, "Unsupported game");
 		return APLRes_Failure;
 	}
-	
-	MarkNativeAsOptional("GetUserMessageType");
 	
 	CreateNative("NativeVotes_IsVoteTypeSupported", Native_IsVoteTypeSupported);
 	CreateNative("NativeVotes_Create", Native_Create);
@@ -138,6 +146,8 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 	CreateNative("NativeVotes_GetItemCount", Native_GetItemCount);
 	CreateNative("NativeVotes_SetDetails", Native_SetDetails);
 	CreateNative("NativeVotes_GetDetails", Native_GetDetails);
+	CreateNative("NativeVotes_SetTitle", Native_SetTitle);
+	CreateNative("NativeVotes_GetTitle", Native_GetTitle);
 	CreateNative("NativeVotes_SetTarget", Native_SetTarget);
 	CreateNative("NativeVotes_GetTarget", Native_GetTarget);
 	CreateNative("NativeVotes_GetTargetSteam", Native_GetTargetSteam);
@@ -156,10 +166,13 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 	CreateNative("NativeVotes_SetInitiator", Native_SetInitiator);
 	CreateNative("NativeVotes_GetInitiator", Native_GetInitiator);
 	CreateNative("NativeVotes_DisplayPass", Native_DisplayPass);
+	CreateNative("NativeVotes_DisplayPassCustomToOne", Native_DisplayPassCustomToOne);
 	CreateNative("NativeVotes_DisplayPassEx", Native_DisplayPassEx);
 	CreateNative("NativeVotes_DisplayFail", Native_DisplayFail);
-	CreateNative("NativeVotes_RegisterVoteManager", Native_RegisterVoteManager);
+	//CreateNative("NativeVotes_RegisterVoteManager", Native_RegisterVoteManager);
 	CreateNative("NativeVotes_DisplayCallVoteFail", Native_DisplayCallVoteFail);
+	CreateNative("NativeVotes_RedrawVoteTitle", Native_RedrawVoteTitle);
+	CreateNative("NativeVotes_RedrawVoteItem", Native_RedrawVoteItem);
 	
 	RegPluginLibrary("nativevotes");
 	
@@ -169,6 +182,7 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 public OnPluginStart()
 {
 	LoadTranslations("core.phrases");
+	LoadTranslations("nativevotes.phrases.txt");
 	
 	CreateConVar("nativevotes_version", VERSION, "NativeVotes API version", FCVAR_DONTRECORD | FCVAR_NOTIFY);
 
@@ -181,26 +195,17 @@ public OnPluginStart()
 	HookConVarChange(g_Cvar_VoteDelay, OnVoteDelayChange);
 
 	AddCommandListener(Command_Vote, "vote"); // TF2, CS:GO
-	AddCommandListener(Command_Vote, "Vote"); // L4D, L4D2
+	//AddCommandListener(Command_Vote, "Vote"); // L4D, L4D2
 	
-	g_Forward_OnCallVoteSetup = CreateForward(ET_Event, Param_Cell, Param_Array);
-	g_Forward_OnCallVote = CreateForward(ET_Event, Param_Cell, Param_Cell, Param_String, Param_Cell);
+	// This is basically dead as of the 2014-10-15 update
+	//g_Forward_OnCallVoteSetup = CreateForward(ET_Event, Param_Cell, Param_Array);
+	//g_Forward_OnCallVote = CreateForward(ET_Event, Param_Cell, Param_Cell, Param_String, Param_Cell);
 	
-	AddCommandListener(Command_CallVote, "callvote"); // All games
+	//AddCommandListener(Command_CallVote, "callvote"); // All games
 	
 	g_hVotes = CreateArray(_, Game_GetMaxItems());
 	
 	AutoExecConfig(true, "nativevotes");
-}
-
-public OnConfigsExecuted()
-{
-	// This is done every map for safety reasons... it usually doesn't change
-	g_VoteController = EntIndexToEntRef(FindEntityByClassname(-1, "vote_controller"));
-	if (g_VoteController == INVALID_ENT_REFERENCE)
-	{
-		LogError("Could not find Vote Controller.");
-	}
 }
 
 public OnClientDisconnect_Post(client)
@@ -234,6 +239,7 @@ public OnClientDisconnect_Post(client)
 	}
 }
 
+/*
 public Action:Command_CallVote(client, const String:command[], argc)
 {
 	if (Internal_IsVoteInProgress())
@@ -338,7 +344,7 @@ public Action:Command_CallVote(client, const String:command[], argc)
 	return result;
 
 }
-
+*/
 public OnVoteDelayChange(Handle:convar, const String:oldValue[], const String:newValue[])
 {
 	/* See if the new vote delay isn't something we need to account for */
@@ -363,8 +369,9 @@ public OnMapEnd()
 {
 	if (g_hCurVote != INVALID_HANDLE)
 	{
-		// Cancel the ongoing vote, but don't close the handle, as the other plugin may still re-use it
-		OnVoteCancel(g_hCurVote, VoteCancel_Generic);
+		// Cancel the ongoing vote, but don't close the handle, as the other plugins may still re-use it
+		CancelVoting();
+		//OnVoteCancel(g_hCurVote, VoteCancel_Generic);
 		g_hCurVote = INVALID_HANDLE;
 	}
 	
@@ -467,22 +474,27 @@ OnVoteSelect(Handle:vote, client, item)
 	}
 }
 
-
 //MenuAction_Select
 OnSelect(Handle:vote, client, item)
 {
-	DoAction(vote, MenuAction_Select, client, item);
+	new MenuAction:actions = Data_GetActions(vote);
+	if (actions & MenuAction_Select)
+	{
+		DoAction(vote, MenuAction_Select, client, item);
+	}
 }
 
 //MenuAction_End
 OnEnd(Handle:vote, item)
 {
+	// Always called
 	DoAction(vote, MenuAction_End, item, 0);
 }
 
 
 stock OnVoteEnd(Handle:vote, item)
 {
+	// Always called
 	DoAction(vote, MenuAction_VoteEnd, item, 0);
 }
 
@@ -490,13 +502,19 @@ OnVoteStart(Handle:vote)
 {
 	// Fire both Start and VoteStart in the other plugin.
 	
-	DoAction(vote, MenuAction_Start, 0, 0);
+	new MenuAction:actions = Data_GetActions(vote);
+	if (actions & MenuAction_Start)
+	{
+		DoAction(vote, MenuAction_Start, 0, 0);
+	}
 	
+	// Always called
 	DoAction(vote, MenuAction_VoteStart, 0, 0);
 }
 
 OnVoteCancel(Handle:vote, reason)
 {
+	// Always called
 	DoAction(vote, MenuAction_VoteCancel, reason, 0);
 }
 
@@ -904,7 +922,6 @@ bool:InitializeVoting(Handle:vote, time, flags)
 		SetArrayCell(g_hVotes, i, 0);
 	}
 	
-	g_bWasCancelled = false;
 	g_hCurVote = vote;
 	g_VoteTime = time;
 	g_VoteFlags = flags;
@@ -947,18 +964,7 @@ StartVoting()
 			
 			if (target > 0 && target <= MaxClients && IsClientConnected(target) && Internal_IsClientInVotePool(target))
 			{
-				switch (g_GameVersion)
-				{
-					case SOURCE_SDK_LEFT4DEAD, SOURCE_SDK_LEFT4DEAD2:
-					{
-						FakeClientCommand(target, "Vote No");
-					}
-					
-					case SOURCE_SDK_EPISODE2VALVE, SOURCE_SDK_CSGO:
-					{
-						FakeClientCommand(target, "vote option2");
-					}
-				}
+				Game_VoteNo(target);
 			}
 		}
 	}
@@ -970,18 +976,7 @@ StartVoting()
 		
 		if (initiator > 0 && initiator <= MaxClients && IsClientConnected(initiator) && Internal_IsClientInVotePool(initiator))
 		{
-			switch (g_GameVersion)
-			{
-				case SOURCE_SDK_LEFT4DEAD, SOURCE_SDK_LEFT4DEAD2:
-				{
-					FakeClientCommand(initiator, "Vote Yes");
-				}
-				
-				case SOURCE_SDK_EPISODE2VALVE, SOURCE_SDK_CSGO:
-				{
-					FakeClientCommand(initiator, "vote option1");
-				}
-			}
+			Game_VoteYes(initiator);
 		}
 	}
 }
@@ -1060,11 +1055,6 @@ Internal_IsCancelling()
 	return g_bCancelled;
 }
 
-Internal_WasCancelled()
-{
-	return g_bWasCancelled;
-}
-
 stock Internal_GetCurrentVote()
 {
 	return g_hCurVote;
@@ -1078,7 +1068,6 @@ Internal_Reset()
 	g_hCurVote = INVALID_HANDLE;
 	g_NumVotes = 0;
 	g_bCancelled = false;
-	g_bWasCancelled = false;
 	g_LeaderList[0] = '\0';
 	g_TotalClients = 0;
 	
@@ -1110,7 +1099,7 @@ bool:Internal_IsClientInVotePool(client)
 
 bool:Internal_RedrawToClient(client, bool:revotes)
 {
-	if (!Internal_IsClientInVotePool(client))
+	if (!Internal_IsVoteInProgress() || !Internal_IsClientInVotePool(client))
 	{
 		return false;
 	}
@@ -1127,10 +1116,18 @@ bool:Internal_RedrawToClient(client, bool:revotes)
 		g_ClientVotes[client] = VOTE_PENDING;
 		g_bRevoting[client] = true;
 		g_NumVotes--;
+		Game_UpdateVoteCounts(g_hVotes, g_TotalClients);
 	}
 	
 	// Display the vote fail screen for a few seconds
-	Game_DisplayVoteFail(g_hCurVote, NativeVotesFail_Generic, client);
+	//Game_DisplayVoteFail(g_hCurVote, NativeVotesFail_Generic, client);
+	
+	// No, display a vote pass screen because that's nicer and we can customize it.
+	// Note: This isn't inside the earlier if because some players have had issues where the display
+	//   doesn't always appear the first time.
+	new String:revotePhrase[128];
+	Format(revotePhrase, sizeof(revotePhrase), "%T", "NativeVotes Revote", client);
+	Game_DisplayVotePassCustom(g_hCurVote, revotePhrase, client);
 	
 	new Handle:data;
 	
@@ -1147,7 +1144,7 @@ public Action:RedrawTimer(Handle:timer, Handle:data)
 	new client = ReadPackCell(data);
 	new Handle:vote = Handle:ReadPackCell(data);
 	
-	if (Internal_IsVoteInProgress() && !Internal_IsCancelling() && !Internal_WasCancelled())
+	if (Internal_IsVoteInProgress() && !Internal_IsCancelling())
 	{
 		Game_DisplayVoteToOne(vote, client);
 	}
@@ -1197,6 +1194,12 @@ public Native_Create(Handle:plugin, numParams)
 	else
 	{
 		return _:INVALID_HANDLE;
+	}
+	
+	if (voteType != NativeVotesType_NextLevelMult && voteType != NativeVotesType_Custom_Mult)
+	{
+		Data_AddItem(vote, "yes", "Yes");
+		Data_AddItem(vote, "no", "No");
 	}
 	
 	new Handle:menuForward = Data_GetHandler(vote);
@@ -1272,7 +1275,14 @@ public Native_AddItem(Handle:plugin, numParams)
 		ThrowNativeError(SP_ERROR_NATIVE, "NativeVotes handle %x is invalid", vote);
 		return false;
 	}
+
+	new NativeVotesType:voteType = Data_GetType(vote);
 	
+	if (voteType != NativeVotesType_NextLevelMult && voteType != NativeVotesType_Custom_Mult)
+	{
+		return false;
+	}
+
 	decl String:info[256];
 	decl String:display[256];
 	GetNativeString(2, info, sizeof(info));
@@ -1287,6 +1297,13 @@ public Native_InsertItem(Handle:plugin, numParams)
 	if (vote == INVALID_HANDLE)
 	{
 		ThrowNativeError(SP_ERROR_NATIVE, "NativeVotes handle %x is invalid", vote);
+		return false;
+	}
+
+	new NativeVotesType:voteType = Data_GetType(vote);
+	
+	if (voteType != NativeVotesType_NextLevelMult && voteType != NativeVotesType_Custom_Mult)
+	{
 		return false;
 	}
 
@@ -1316,6 +1333,13 @@ public Native_RemoveItem(Handle:plugin, numParams)
 		return false;
 	}
 	
+	new NativeVotesType:voteType = Data_GetType(vote);
+	
+	if (voteType != NativeVotesType_NextLevelMult && voteType != NativeVotesType_Custom_Mult)
+	{
+		return false;
+	}
+
 	new position = GetNativeCell(2);
 	
 	return Data_RemoveItem(vote, position);
@@ -1403,10 +1427,46 @@ public Native_SetDetails(Handle:plugin, numParams)
 	new len;
 	GetNativeStringLength(2, len);
 	
-	decl String:details[len + 1];
-	GetNativeString(2, details, len + 1);
+	decl String:details[len+1];
+	GetNativeString(2, details, len+1);
 	
 	Data_SetDetails(vote, details);
+}
+
+public Native_GetTitle(Handle:plugin, numParams)
+{
+	new Handle:vote = GetNativeCell(1);
+	if (vote == INVALID_HANDLE)
+	{
+		ThrowNativeError(SP_ERROR_NATIVE, "NativeVotes handle %x is invalid", vote);
+		return;
+	}
+	
+	new len = GetNativeCell(3);
+
+	decl String:title[len];
+	
+	Data_GetTitle(vote, title, len);
+	
+	SetNativeString(2, title, len);
+}
+
+public Native_SetTitle(Handle:plugin, numParams)
+{
+	new Handle:vote = GetNativeCell(1);
+	if (vote == INVALID_HANDLE)
+	{
+		ThrowNativeError(SP_ERROR_NATIVE, "NativeVotes handle %x is invalid", vote);
+		return;
+	}
+	
+	new len;
+	GetNativeStringLength(2, len);
+	
+	decl String:details[len+1];
+	GetNativeString(2, details, len+1);
+	
+	Data_SetTitle(vote, details);
 }
 
 public Native_IsVoteInProgress(Handle:plugin, numParams)
@@ -1583,6 +1643,11 @@ public Native_SetTeam(Handle:plugin, numParams)
 		return;
 	}
 	
+	if (g_EngineVersion == Engine_TF2 && team == NATIVEVOTES_ALL_TEAMS)
+	{
+		team = NATIVEVOTES_TF2_ALL_TEAMS;
+	}
+	
 	Data_SetTeam(vote, team);
 }
 
@@ -1619,14 +1684,31 @@ public Native_DisplayPass(Handle:plugin, numParams)
 		ThrowNativeError(SP_ERROR_NATIVE, "NativeVotes handle %x is invalid", vote);
 		return;
 	}
-	
-	new size;
-	GetNativeStringLength(2, size);
-	
-	decl String:winner[size + 1];
-	GetNativeString(2, winner, size + 1);
+
+	new len;
+	GetNativeStringLength(2, len);
+	new String:winner[len+1];
+	GetNativeString(2, winner, len+1);
 
 	Game_DisplayVotePass(vote, winner);
+}
+
+public Native_DisplayPassCustomToOne(Handle:plugin, numParams)
+{
+	new Handle:vote = GetNativeCell(1);
+	if (vote == INVALID_HANDLE)
+	{
+		ThrowNativeError(SP_ERROR_NATIVE, "NativeVotes handle %x is invalid", vote);
+		return;
+	}
+
+	new client = GetNativeCell(2);
+	
+	new String:translation[TRANSLATION_LENGTH];
+	
+	FormatNativeString(0, 3, 4, TRANSLATION_LENGTH, _, translation);
+
+	Game_DisplayVotePassCustom(vote, translation, client);
 }
 
 public Native_DisplayPassEx(Handle:plugin, numParams)
@@ -1645,12 +1727,11 @@ public Native_DisplayPassEx(Handle:plugin, numParams)
 		ThrowNativeError(SP_ERROR_NATIVE, "Invalid vote pass type: %d", passType);
 	}
 
-	new size;
-	GetNativeStringLength(3, size);
-	
-	decl String:winner[size + 1];
-	GetNativeString(3, winner, size + 1);
-	
+	new len;
+	GetNativeStringLength(3, len);
+	new String:winner[len+1];
+	GetNativeString(3, winner, len+1);
+
 	Game_DisplayVotePassEx(vote, passType, winner);
 }
 
@@ -1756,6 +1837,39 @@ public Native_DisplayCallVoteFail(Handle:plugin, numParams)
 	Game_DisplayCallVoteFail(client, reason, time);
 }
 
+public Native_RedrawVoteTitle(Handle:plugin, numParams)
+{
+	if (!g_curDisplayClient)
+	{
+		ThrowNativeError(SP_ERROR_NATIVE, "You can only call this once from a MenuAction_Display callback");
+	}
+	
+	new NativeVotesType:voteType = Data_GetType(g_hCurVote);
+	
+	if (voteType != NativeVotesType_Custom_Mult && voteType != NativeVotesType_Custom_YesNo)
+	{
+		return _:Plugin_Continue;
+	}
+	
+	GetNativeString(1, g_newMenuTitle, TRANSLATION_LENGTH);
+	return _:Plugin_Changed;
+}
+
+public Native_RedrawVoteItem(Handle:plugin, numParams)
+{
+	if (!g_curItemClient)
+	{
+		ThrowNativeError(SP_ERROR_NATIVE, "You can only call this once from a MenuAction_DisplayItem callback");
+	}
+	
+	if (Game_GetMaxItems() == L4DL4D2_COUNT)
+	{
+		return _:Plugin_Continue;
+	}
+	
+	GetNativeString(1, g_newMenuItem, TRANSLATION_LENGTH);
+	return _:Plugin_Changed;
+}
 
 //----------------------------------------------------------------------------
 // Data functions
@@ -1846,6 +1960,36 @@ NativeVotesPassType:VoteTypeToVotePass(NativeVotesType:voteType)
 			passType = NativeVotesPass_Continue;
 		}
 		
+		case NativeVotesType_StartRound:
+		{
+			passType = NativeVotesPass_StartRound;
+		}
+		
+		case NativeVotesType_Eternaween:
+		{
+			passType = NativeVotesPass_Eternaween;
+		}
+		
+		case NativeVotesType_AutoBalanceOn:
+		{
+			passType = NativeVotesPass_AutoBalanceOn;
+		}
+		
+		case NativeVotesType_AutoBalanceOff:
+		{
+			passType = NativeVotesPass_AutoBalanceOff;
+		}
+		
+		case NativeVotesType_ClassLimitsOn:
+		{
+			passType = NativeVotesPass_ClassLimitsOn;
+		}
+		
+		case NativeVotesType_ClassLimitsOff:
+		{
+			passType = NativeVotesPass_ClassLimitsOff;
+		}
+		
 		default:
 		{
 			passType = NativeVotesPass_Custom;
@@ -1855,3 +1999,103 @@ NativeVotesPassType:VoteTypeToVotePass(NativeVotesType:voteType)
 	return passType;
 }
 
+stock GetEngineVersionName(EngineVersion:version, String:printName[], maxlength)
+{
+	switch (version)
+	{
+		case Engine_Unknown:
+		{
+			strcopy(printName, maxlength, "Unknown");
+		}
+		
+		case Engine_Original:				
+		{
+			strcopy(printName, maxlength, "Original");
+		}
+		
+		case Engine_SourceSDK2006:
+		{
+			strcopy(printName, maxlength, "Source SDK 2006");
+		}
+		
+		case Engine_SourceSDK2007:
+		{
+			strcopy(printName, maxlength, "Source SDK 2007");
+		}
+		
+		case Engine_Left4Dead:
+		{
+			strcopy(printName, maxlength, "Left 4 Dead ");
+		}
+		
+		case Engine_DarkMessiah:
+		{
+			strcopy(printName, maxlength, "Dark Messiah");
+		}
+		
+		case Engine_Left4Dead2:
+		{
+			strcopy(printName, maxlength, "Left 4 Dead 2");
+		}
+		
+		case Engine_AlienSwarm:
+		{
+			strcopy(printName, maxlength, "Alien Swarm");
+		}
+		
+		case Engine_BloodyGoodTime:
+		{
+			strcopy(printName, maxlength, "Bloody Good Time");
+		}
+		
+		case Engine_EYE:
+		{
+			strcopy(printName, maxlength, "E.Y.E. Divine Cybermancy");
+		}
+		
+		case Engine_Portal2:
+		{
+			strcopy(printName, maxlength, "Portal 2");
+		}
+		
+		case Engine_CSGO:
+		{
+			strcopy(printName, maxlength, "Counter-Strike: Global Offensive");
+		}
+		
+		case Engine_CSS:
+		{
+			strcopy(printName, maxlength, "Counter-Strike: Source");
+		}
+		
+		case Engine_DOTA:
+		{
+			strcopy(printName, maxlength, "DOTA 2");
+		}
+		
+		case Engine_HL2DM:
+		{
+			strcopy(printName, maxlength, "Half-Life 2: Deathmatch");
+		}
+		
+		case Engine_DODS:
+		{
+			strcopy(printName, maxlength, "Day of Defeat: Source");
+		}
+		
+		case Engine_TF2:
+		{
+			strcopy(printName, maxlength, "Team Fortress 2");
+		}
+		
+		case Engine_NuclearDawn:
+		{
+			strcopy(printName, maxlength, "Nuclear Dawn");
+		}
+		
+		default:
+		{
+			strcopy(printName, maxlength, "Not listed");
+		}
+	}
+}

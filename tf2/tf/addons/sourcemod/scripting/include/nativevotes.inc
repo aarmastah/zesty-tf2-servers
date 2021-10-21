@@ -30,8 +30,9 @@
  */
  
 #include <menus>
+#include <sourcemod>
 
-// NativeVotes 0.7 series
+// NativeVotes 0.8 series
 
 #if defined _nativevotes_included
  #endinput
@@ -43,6 +44,12 @@
 #define NATIVEVOTES_EXTEND 			"Extend current Map" /** Defined in TF2, but doesn't appear to be localized */
 
 #define NATIVEVOTES_ALL_TEAMS		-1 // Defined by TF2, may be the same in L4D/L4D2
+#define NATIVEVOTES_TF2_ALL_TEAMS	0 // Defined by TF2, may be the same in L4D/L4D2
+#define NATIVEVOTES_TEAM_UNASSIGNED 0 // For completeness, do not otherwise use
+#define NATIVEVOTES_TEAM_SPECTATOR	1 // Spectators
+#define NATIVEVOTES_TEAM_1			2 // RED/Survivors/Terrorists
+#define NATIVEVOTES_TEAM_2			3 // BLU/Infected/Counter-Terrorists
+
 #define NATIVEVOTES_SERVER_INDEX 	99 // Defined by TF2, may be the same in L4D/L4D2
 
 // These may seem backwards, but this is the order that the votes appear in the vote screen
@@ -53,6 +60,9 @@
 /*
 The following MenuActions are supported.  Arguments are also listed, as they differ slightly from the default
 MenuAction_Start		A menu has been started (nothing passed). Only exists for compat reasons.
+MenuAction_Display		A menu is about to be displayed (param1=client). If you choose to change the vote text,
+ 						To change the text, use RedrawVoteTitle()
+						If you do so, return 1 or _:Plugin_Changed  Otherwise, return _:Plugin_Continue or 0.
 MenuAction_Select		An item was selected (param1=client, param2=item). For subplugin support.
 MenuAction_End			A vote has fully ended and the vote object is ready to be cleaned up
 						param1 is MenuEnd reason, either MenuEnd_VotingCancelled or MenuEnd_VotingDone
@@ -61,6 +71,9 @@ MenuAction_VoteEnd		A vote sequence has succeeded (param1=chosen item)
 						You should call NativeVotes_DisplayPass or NativeVotes_DisplayPassEx after this
 MenuAction_VoteStart	A vote sequence has started (nothing passed).  Use this instead of MenuAction_Start
 MenuAction_VoteCancel	A vote sequence has been cancelled (param1=reason)
+MenuAction_DisplayItem	Item text is being drawn to the display (param1=client, param2=item)
+						To change the text, use RedrawVoteItem().
+						If you do so, return 1 or _:Plugin_Changed.  Otherwise, return _:Plugin_Continue or 0.
 */
 
 #define NATIVEVOTES_ACTIONS_DEFAULT		MenuAction_VoteStart|MenuAction_VoteCancel|MenuAction_VoteEnd|MenuAction_End
@@ -93,6 +106,12 @@ enum NativeVotesType
 	NativeVotesType_Surrender,		/**< CS:GO: Yes/No, details are ignored */
 	NativeVotesType_Rematch,		/**< CS:GO: Yes/No, details are ignored */
 	NativeVotesType_Continue,		/**< CS:GO: Yes/No, details are ignored */
+	NativeVotesType_StartRound,		/**< TF2: Yes/No, details are ignored */
+	NativeVotesType_Eternaween,		/**< TF2: Yes/No, details are ignored */
+	NativeVotesType_AutoBalanceOn,	/**< TF2: Yes/No, details are ignored */
+	NativeVotesType_AutoBalanceOff,	/**< TF2: Yes/No, details are ignored */
+	NativeVotesType_ClassLimitsOn,	/**< TF2: Yes/No, details are ignored */
+	NativeVotesType_ClassLimitsOff,	/**< TF2: Yes/No, details are ignored */
 };
 
 enum NativeVotesPassType
@@ -115,6 +134,12 @@ enum NativeVotesPassType
 	NativeVotesPass_Surrender,			/**< CS:GO: Details are ignored */
 	NativeVotesPass_Rematch,			/**< CS:GO: Details are ignored */
 	NativeVotesPass_Continue,			/**< CS:GO: Details are ignored */
+	NativeVotesPass_StartRound,			/**< TF2: Details are ignored */
+	NativeVotesPass_Eternaween,			/**< TF2: Details are ignored */
+	NativeVotesPass_AutoBalanceOn,		/**< TF2: Yes/No, details are ignored */
+	NativeVotesPass_AutoBalanceOff,		/**< TF2: Yes/No, details are ignored */
+	NativeVotesPass_ClassLimitsOn,		/**< TF2: Yes/No, details are ignored */
+	NativeVotesPass_ClassLimitsOff,		/**< TF2: Yes/No, details are ignored */
 };
 
 /**
@@ -135,18 +160,23 @@ enum NativeVotesCallFailType
 {
 	NativeVotesCallFail_Generic = 0,			/**< Generic fail. */
 	NativeVotesCallFail_Loading = 1,			/**< L4D/L4D2: Players are still loading. */
-	NativeVotesCallFail_Recent = 2,				/**< TF2:/CS:GO: You can't call another vote yet: Argument is seconds until you can call another vote. */
-	NativeVotesCallFail_Disabled = 5,			/**< TF2:/CS:GO: Server has disabled that issue. */
-	NativeVotesCallFail_MapNotFound = 6,		/**< TF2:/CS:GO: Server does not have that map. */
-	NativeVotesCallFail_SpecifyMap = 7,			/**< TF2:/CS:GO: You must specify a map. */
-	NativeVotesCallFail_Failed = 8,				/**< TF2:/CS:GO: This vote failed recently. */
-	NativeVotesCallFail_WrongTeam = 9,			/**< TF2:/CS:GO: Team can't call this vote. */
-	NativeVotesCallFail_Waiting = 10,			/**< TF2:/CS:GO: Vote can't be called during Waiting For Players. */
-	NativeVotesCallFail_Unknown = 11,			/**< TF2:/CS:GO: Unknown, buggy in TF2. */
-	NativeVotesCallFail_CantKickAdmin = 12,		/**< TF2:/CS:GO: Can't kick server admin. */
-	NativeVotesCallFail_ScramblePending = 13,	/**< TF2:/CS:GO: Team Scramble is pending.. */
-	NativeVotesCallFail_Spectators = 14,		/**< TF2:/CS:GO: Spectators aren't allowed to call votes. */
-	NativeVotesCallFail_LevelSet = 15,			/**< TF2:/CS:GO: Next level already set. */
+	NativeVotesCallFail_Recent = 2,				/**< TF2/CS:GO: You can't call another vote yet: Argument is seconds until you can call another vote. */
+	NativeVotesCallFail_Disabled = 5,			/**< TF2/CS:GO: Server has disabled that issue. */
+	NativeVotesCallFail_MapNotFound = 6,		/**< TF2/CS:GO: Server does not have that map. */
+	NativeVotesCallFail_SpecifyMap = 7,			/**< TF2/CS:GO: You must specify a map. */
+	NativeVotesCallFail_Failed = 8,				/**< TF2/CS:GO: This vote failed recently. */
+	NativeVotesCallFail_WrongTeam = 9,			/**< TF2/CS:GO: Team can't call this vote. */
+	NativeVotesCallFail_Waiting = 10,			/**< TF2/CS:GO: Vote can't be called during Waiting For Players. */
+	NativeVotesCallFail_PlayerNotFound = 11,	/**< TF2/CS:GO: Player to kick can't be found. Buggy in TF2. */
+	NativeVotesCallFail_Unknown = 11,
+	NativeVotesCallFail_CantKickAdmin = 12,		/**< TF2/CS:GO: Can't kick server admin. */
+	NativeVotesCallFail_ScramblePending = 13,	/**< TF2/CS:GO: Team Scramble is pending.. */
+	NativeVotesCallFail_Spectators = 14,		/**< TF2/CS:GO: Spectators aren't allowed to call votes. */
+	NativeVotesCallFail_LevelSet = 15,			/**< TF2/CS:GO: Next level already set. */
+	NativeVotesCallFail_MapNotValid = 16,		/**< ???: Map is invalid. */
+	NativeVotesCallFail_KickTime = 17,			/**< ???: Cannot kick for time. */
+	NativeVotesCallFail_KickDuringRound = 18,	/**< ???: Cannot kick during a round. */
+	NativeVotesCallFail_AlreadyActive = 19		/**< TF2: Cannot call vote because modification (Eternaween) is already active (may not work) */
 };
 
 /*
@@ -179,104 +209,6 @@ native Handle:NativeVotes_Create(MenuHandler:handler, NativeVotesType:voteType,
  * @noreturn
  */
 native Handle:NativeVotes_Close(Handle:vote);
-
-/**
- * Broadcasts a vote to a list of clients.  The most selected item will be 
- * returned through MenuAction_VoteEnd.  On a tie, a random item will be returned 
- * from a list of the tied items.
- *
- * Note that MenuAction_VoteStart, MenuAction_VoteCancel, MenuAction_VoteEnd, and MenuAction_End are all
- * default callbacks and do not need to be enabled.
- *
- * @param vote				Vote Handle.
- * @param clients			Array of clients to broadcast to.
- * @param numClients		Number of clients in the array.
- * @param time				Maximum time to leave menu on the screen.
- * @return					True on success, false if a vote is already in progress.
- * @error					Invalid Handle, or a vote is already in progress.
- */
-native bool:NativeVotes_Display(Handle:vote, clients[], numClients, time);
-
-/**
- * Sends a vote menu to all clients.  See NativeVotes_Display() for more information.
- *
- * @param vote				Vote Handle.
- * @param time				Maximum time to leave menu on the screen.
- * @return					True on success, false if this menu already has a vote session
- *							in progress.
- * @error					Invalid Handle, or a vote is already in progress.
- */
-stock bool:NativeVotes_DisplayToAll(Handle:vote, time)
-{
-	new total = 0;
-	decl players[MaxClients];
-	
-	for (new i=1; i<=MaxClients; i++)
-	{
-		if (!IsClientInGame(i) || IsFakeClient(i))
-		{
-			continue;
-		}
-		players[total++] = i;
-	}
-	
-	return NativeVotes_Display(vote, players, total, time);
-}
-
-/**
- * Sends a vote menu to a single team.  See NativeVotes_Display() for more information.
- *
- * @param vote				Vote Handle.
- * @param team				Team to send vote to. 1 = spectators, 2 = RED/Survivors/Terrorists, 3 = BLU/Infected/Counter-Terrorists
- * @param time				Maximum time to leave menu on the screen.
- * @return					True on success, false if this menu already has a vote session
- *							in progress.
- * @error					Invalid Handle, or a vote is already in progress.
- */
-stock bool:NativeVotes_DisplayToTeam(Handle:vote, team, time)
-{
-	NativeVotes_SetTeam(vote, team);
-
-	new total;
-	decl players[MaxClients];
-	
-	for (new i=1; i<=MaxClients; i++)
-	{
-		if (!IsClientInGame(i) || IsFakeClient(i) || (GetClientTeam(i) != team))
-		{
-			continue;
-		}
-		players[total++] = i;
-	}
-	
-	return NativeVotes_Display(vote, players, total, time);
-}
-
-/**
- * Sends a vote menu to all clients who are not spectators or waiting to choose a team.  See NativeVotes_Display() for more information.
- *
- * @param vote				Vote Handle.
- * @param time				Maximum time to leave menu on the screen.
- * @return					True on success, false if this menu already has a vote session
- *							in progress.
- * @error					Invalid Handle, or a vote is already in progress.
- */
-stock bool:NativeVotes_DisplayToAllNonSpectators(Handle:vote, time)
-{
-	new total;
-	decl players[MaxClients];
-	
-	for (new i=1; i<=MaxClients; i++)
-	{
-		if (!IsClientInGame(i) || IsFakeClient(i) || (GetClientTeam(i) < 2))
-		{
-			continue;
-		}
-		players[total++] = i;
-	}
-	
-	return NativeVotes_Display(vote, players, total, time);
-}
 
 /**
  * Appends a new item to the end of a vote.  Only valid for Multiple Choice votes
@@ -347,6 +279,7 @@ native NativeVotes_GetItemCount(Handle:vote);
 
 /**
  * Sets the vote's details for votes that support details
+ * If this is a custom vote, use NativeVotes_SetTitle to set the vote's title.
  *
  * @param vote				Vote Handle.
  * @param argument			Details string. See vote types for what details stands for.
@@ -365,6 +298,29 @@ native NativeVotes_SetDetails(Handle:vote, const String:argument[]);
  * @error					Invalid Handle.
  */
 native NativeVotes_GetDetails(Handle:vote, String:buffer[], maxlength);
+
+/**
+ * Sets a custom vote's title
+ *
+ * @param vote				Vote Handle.
+ * @param title			 	Vote title string.
+ * @noreturn
+ * @error					Invalid Handle.
+ */
+native NativeVotes_SetTitle(Handle:vote, const String:argument[]);
+
+/**
+ * Return the vote's Title.
+ * If not set, returns Details instead.
+ *     This behavior is for compatibility with NativeVotes 0.8.0 and below.
+ *
+ * @param vote				Vote Handle.
+ * @param buffer			Buffer to store title.
+ * @param maxlength			Maximum length of the buffer.
+ * @noreturn
+ * @error					Invalid Handle.
+ */
+native NativeVotes_GetTitle(Handle:vote, String:buffer[], maxlength);
 
 /**
  * Sets the target userid for vote
@@ -614,17 +570,158 @@ native NativeVotes_SetInitiator(Handle:vote, client);
 native NativeVotes_GetInitiator(Handle:vote);
 
 /**
+ * Broadcasts a vote to a list of clients.  The most selected item will be 
+ * returned through MenuAction_VoteEnd.  On a tie, a random item will be returned 
+ * from a list of the tied items.
+ *
+ * Note that MenuAction_VoteStart, MenuAction_VoteCancel, MenuAction_VoteEnd, and MenuAction_End are all
+ * default callbacks and do not need to be enabled.
+ *
+ * @param vote				Vote Handle.
+ * @param clients			Array of clients to broadcast to.
+ * @param numClients		Number of clients in the array.
+ * @param time				Maximum time to leave menu on the screen.
+ * @return					True on success, false if a vote is already in progress.
+ * @error					Invalid Handle, or a vote is already in progress.
+ */
+native bool:NativeVotes_Display(Handle:vote, clients[], numClients, time);
+
+/**
+ * Sends a vote menu to all clients.  See NativeVotes_Display() for more information.
+ *
+ * @param vote				Vote Handle.
+ * @param time				Maximum time to leave menu on the screen.
+ * @return					True on success, false if this menu already has a vote session
+ *							in progress.
+ * @error					Invalid Handle, or a vote is already in progress.
+ */
+stock bool:NativeVotes_DisplayToAll(Handle:vote, time)
+{
+	new total = 0;
+	decl players[MaxClients];
+	
+	for (new i=1; i<=MaxClients; i++)
+	{
+		if (!IsClientInGame(i) || IsFakeClient(i))
+		{
+			continue;
+		}
+		players[total++] = i;
+	}
+	
+	return NativeVotes_Display(vote, players, total, time);
+}
+
+/**
+ * Sends a vote menu to a single team.  See NativeVotes_Display() for more information.
+ *
+ * @param vote				Vote Handle.
+ * @param team				Team to send vote to. 1 = spectators, 2 = RED/Survivors/Terrorists, 3 = BLU/Infected/Counter-Terrorists
+ * @param time				Maximum time to leave menu on the screen.
+ * @return					True on success, false if this menu already has a vote session
+ *							in progress.
+ * @error					Invalid Handle, or a vote is already in progress.
+ */
+stock bool:NativeVotes_DisplayToTeam(Handle:vote, team, time)
+{
+	NativeVotes_SetTeam(vote, team);
+
+	new total;
+	decl players[MaxClients];
+	
+	for (new i=1; i<=MaxClients; i++)
+	{
+		if (!IsClientInGame(i) || IsFakeClient(i) || (GetClientTeam(i) != team))
+		{
+			continue;
+		}
+		players[total++] = i;
+	}
+	
+	return NativeVotes_Display(vote, players, total, time);
+}
+
+/**
+ * Sends a vote menu to all clients who are not spectators or waiting to choose a team.  See NativeVotes_Display() for more information.
+ *
+ * @param vote				Vote Handle.
+ * @param time				Maximum time to leave menu on the screen.
+ * @return					True on success, false if this menu already has a vote session
+ *							in progress.
+ * @error					Invalid Handle, or a vote is already in progress.
+ */
+stock bool:NativeVotes_DisplayToAllNonSpectators(Handle:vote, time)
+{
+	new total;
+	decl players[MaxClients];
+	
+	for (new i=1; i<=MaxClients; i++)
+	{
+		if (!IsClientInGame(i) || IsFakeClient(i) || (GetClientTeam(i) < 2))
+		{
+			continue;
+		}
+		players[total++] = i;
+	}
+	
+	return NativeVotes_Display(vote, players, total, time);
+}
+
+/**
  * Display vote passed screen
  *
- * You MUST call one of NativeVotes_DisplayPass, NativeVotes_DisplayPassEx,
- * or NativeVotes_DisplayFail to hide the vote screen for users who didn't vote,
- * and to clear out their selection for the next vote.
+ * You MUST call one of the NativeVotesDisplayPass* or NativeVotes_DisplayFail functions
+ * to hide the vote screen for users who didn't vote, and to clear out their selection
+ * for the next vote.
  * 
  * @param vote				Vote handle
- * @param details			Normally the item that won the vote. Also used for custom vote winners
+ * @param details			Normally the item that won the vote or format string. Also used for custom vote winners
+ * @param ...				Variable number of format parameters.
  * @noreturn
  */
-native NativeVotes_DisplayPass(Handle:vote, String:details[]="");
+native NativeVotes_DisplayPass(Handle:vote, const String:details[]="");
+
+/**
+ * Display vote passed screen with custom text to a single user
+ *
+ * You MUST call one of the NativeVotesDisplayPass* or NativeVotes_DisplayFail functions
+ * to hide the vote screen for users who didn't vote, and to clear out their selection
+ * for the next vote.
+ * 
+ * @param vote				Vote handle
+ * @param client			client to display to
+ * @param format			A format string.
+ * @param any				Variable number of format parameters
+ * @noreturn
+ */
+native NativeVotes_DisplayPassCustomToOne(Handle:vote, client, const String:format[], any:...);
+
+/**
+ * Display vote passed screen with custom text
+ *
+ * You MUST call one of the NativeVotesDisplayPass* or NativeVotes_DisplayFail functions
+ * to hide the vote screen for users who didn't vote, and to clear out their selection
+ * for the next vote.
+ * 
+ * @param vote				Vote handle
+ * @param format			A format string.
+ * @param any				Variable number of format parameters
+ * @noreturn
+ */
+stock NativeVotes_DisplayPassCustom(Handle:vote, const String:format[], any:...)
+{
+	decl String:buffer[192];
+	
+	for (new i = 1; i <= MaxClients; ++i)
+	{
+		if (IsClientInGame(i))
+		{
+			SetGlobalTransTarget(i);
+			VFormat(buffer, sizeof(buffer), format, 3);
+			NativeVotes_DisplayPassCustomToOne(vote, i, "%s", buffer);
+		}
+	}
+}
 
 /**
  * Display vote passed screen with a custom type.
@@ -640,7 +737,7 @@ native NativeVotes_DisplayPass(Handle:vote, String:details[]="");
  * @param details			Normally the item that won the vote. Also used for custom vote winners
  * @noreturn
  */
-native NativeVotes_DisplayPassEx(Handle:vote, NativeVotesPassType:passType, String:details[]="");
+native NativeVotes_DisplayPassEx(Handle:vote, NativeVotesPassType:passType, const String:details[]="");
 
 /**
  * Display failure screen.
@@ -686,7 +783,7 @@ stock bool:NativeVotes_IsNewVoteAllowed()
  * 						Plugin_Handled to return a blank VoteSetup usermessage
  * 						Plugin_Stop to prevent VoteSetup usermessage (not recommended)
  */
-functag public Action:NativeVotes_CallVoteSetupHandler(client, NativeVotesType:voteTypes[]);
+//functag public Action:NativeVotes_CallVoteSetupHandler(client, NativeVotesType:voteTypes[]);
 
 /**
  * Forward for "callvote" handling
@@ -701,7 +798,7 @@ functag public Action:NativeVotes_CallVoteSetupHandler(client, NativeVotesType:v
  * 						Plugin_Handled if you processed this vote type
  * 						Plugin_Stop to block the vote type (not recommended)
  */
-functag public Action:NativeVotes_CallVoteHandler(client, NativeVotesType:voteType, const String:voteArgument[], target);
+//functag public Action:NativeVotes_CallVoteHandler(client, NativeVotesType:voteType, const String:voteArgument[], target);
 
 /**
  * Register a plugin as a vote manager.
@@ -711,7 +808,7 @@ functag public Action:NativeVotes_CallVoteHandler(client, NativeVotesType:voteTy
  * @param setupHandler	Handler to override the which vote types your server supports.  Only useful on TF2 and CS:GO.
  * @noreturn
  */
-native NativeVotes_RegisterVoteManager(NativeVotes_CallVoteHandler:callHandler, NativeVotes_CallVoteSetupHandler:setupHandler=INVALID_FUNCTION);
+//native NativeVotes_RegisterVoteManager(NativeVotes_CallVoteHandler:callHandler, NativeVotes_CallVoteSetupHandler:setupHandler=INVALID_FUNCTION);
 
 /**
  *  Send a call vote fail screen to a user
@@ -724,6 +821,26 @@ native NativeVotes_RegisterVoteManager(NativeVotes_CallVoteHandler:callHandler, 
  * 						can be called again
  */
 native NativeVotes_DisplayCallVoteFail(client, NativeVotesCallFailType:reason, time);
+
+/**
+ * Redraws the vote title from inside a MenuAction_Display callback
+ * Not supported on L4D
+ * 
+ * @param text			Vote title to draw
+ * @error 				If called from outside MenuAction_Display
+ * @return				Plugin_Changed if the change is allowed, Plugin_Continue if it isn't.
+ */
+native Action:NativeVotes_RedrawVoteTitle(const String:text[]);
+
+/**
+ * Redraws the vote text from inside a MenuAction_DisplayItem callback.
+ * Only supported on multiple-choice votes
+ * 
+ * @param text			Vote text to draw.
+ * @error 				If called from outside MenuAction_DisplayItem
+ * @return				Plugin_Changed if the change is allowed, Plugin_Continue if it isn't.
+ */
+native Action:NativeVotes_RedrawVoteItem(const String:text[]);
 
 /**
  * Retrieves voting information from MenuAction_VoteEnd.
@@ -758,7 +875,6 @@ public __pl_nativevotes_SetNTVOptional()
 	MarkNativeAsOptional("NativeVotes_IsVoteTypeSupported");
 	MarkNativeAsOptional("NativeVotes_Create");
 	MarkNativeAsOptional("NativeVotes_Close");
-	MarkNativeAsOptional("NativeVotes_Display");
 	MarkNativeAsOptional("NativeVotes_AddItem");
 	MarkNativeAsOptional("NativeVotes_InsertItem");
 	MarkNativeAsOptional("NativeVotes_RemoveItem");
@@ -767,23 +883,33 @@ public __pl_nativevotes_SetNTVOptional()
 	MarkNativeAsOptional("NativeVotes_GetItemCount");
 	MarkNativeAsOptional("NativeVotes_SetDetails");
 	MarkNativeAsOptional("NativeVotes_GetDetails");
+	MarkNativeAsOptional("NativeVotes_SetTitle");
+	MarkNativeAsOptional("NativeVotes_GetTitle");
+	MarkNativeAsOptional("NativeVotes_SetTarget");
+	MarkNativeAsOptional("NativeVotes_GetTarget");
+	MarkNativeAsOptional("NativeVotes_GetTargetSteam");
 	MarkNativeAsOptional("NativeVotes_IsVoteInProgress");
 	MarkNativeAsOptional("NativeVotes_GetMaxItems");
 	MarkNativeAsOptional("NativeVotes_SetOptionFlags");
 	MarkNativeAsOptional("NativeVotes_GetOptionFlags");
+	MarkNativeAsOptional("NativeVotes_Cancel");
 	MarkNativeAsOptional("NativeVotes_SetResultCallback");
 	MarkNativeAsOptional("NativeVotes_CheckVoteDelay");
 	MarkNativeAsOptional("NativeVotes_IsClientInVotePool");
+	MarkNativeAsOptional("NativeVotes_RedrawClientVote");
 	MarkNativeAsOptional("NativeVotes_RedrawClientVote");
 	MarkNativeAsOptional("NativeVotes_GetType");
 	MarkNativeAsOptional("NativeVotes_SetTeam");
 	MarkNativeAsOptional("NativeVotes_GetTeam");
 	MarkNativeAsOptional("NativeVotes_SetInitiator");
 	MarkNativeAsOptional("NativeVotes_GetInitiator");
+	MarkNativeAsOptional("NativeVotes_Display");
 	MarkNativeAsOptional("NativeVotes_DisplayPass");
+	MarkNativeAsOptional("NativeVotes_DisplayPassCustomToOne");
 	MarkNativeAsOptional("NativeVotes_DisplayPassEx");
 	MarkNativeAsOptional("NativeVotes_DisplayFail");
-	MarkNativeAsOptional("NativeVotes_GetTarget");
-	MarkNativeAsOptional("NativeVotes_GetTargetSteam");
-	MarkNativeAsOptional("NativeVotes_SetTarget");
+	MarkNativeAsOptional("NativeVotes_RegisterVoteManager");
+	MarkNativeAsOptional("NativeVotes_DisplayCallVoteFail");
+	MarkNativeAsOptional("NativeVotes_RedrawVoteTitle");
+	MarkNativeAsOptional("NativeVotes_RedrawVoteItem");
 }

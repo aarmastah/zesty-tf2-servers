@@ -28,6 +28,13 @@
  *
  * Version: $Id$
  */
+#if defined _nativevotes_game_included
+ #endinput
+#endif
+
+#define _nativevotes_game_included
+
+#include <sourcemod>
 
 #define L4DL4D2_COUNT						2
 #define TF2CSGO_COUNT						5
@@ -119,6 +126,30 @@
 #define TF2_VOTE_CHANGEMISSION_START		"#TF_vote_changechallenge"
 #define TF2_VOTE_CHANGEMISSION_PASSED		"#TF_vote_passed_changechallenge"
 
+// User vote for eternaween
+#define TF2_VOTE_ETERNAWEEN_START			"#TF_vote_eternaween"
+#define TF2_VOTE_ETERNAWEEN_PASSED			"#TF_vote_passed_eternaween"
+
+// User vote to start round
+#define TF2_VOTE_ROUND_START				"#TF_vote_td_start_round"
+#define TF2_VOTE_ROUND_PASSED				"#TF_vote_passed_td_start_round"
+
+// User vote to enable autobalance
+#define TF2_VOTE_AUTOBALANCE_ENABLE_START	"#TF_vote_autobalance_enable"
+#define TF2_VOTE_AUTOBALANCE_ENABLE_PASSED	"#TF_vote_passed_autobalance_enable"
+
+// User vote to disable autobalance
+#define TF2_VOTE_AUTOBALANCE_DISABLE_START	"#TF_vote_autobalance_disable"
+#define TF2_VOTE_AUTOBALANCE_DISABLE_PASSED	"#TF_vote_passed_autobalance_disable"
+
+// User vote to enable classlimits
+#define TF2_VOTE_CLASSLIMITS_ENABLE_START	"#TF_vote_classlimits_enable"
+#define TF2_VOTE_CLASSLIMITS_ENABLE_PASSED	"#TF_vote_passed_classlimits_enable"
+
+// User vote to disable classlimits
+#define TF2_VOTE_CLASSLIMITS_DISABLE_START	"#TF_vote_classlimits_disable"
+#define TF2_VOTE_CLASSLIMITS_DISABLE_PASSED	"#TF_vote_passed_classlimits_disable"
+
 // While not a vote string, it works just as well.
 #define TF2_VOTE_CUSTOM						"#TF_playerid_noteam"
 
@@ -138,10 +169,10 @@
 
 // User vote to change maps.
 #define CSGO_VOTE_CHANGELEVEL_START			"#SFUI_vote_changelevel"
-#define CSGO_VOTE_CHANGELEVEL_PASSED		"#SFUI_vote_passed_changelevel"
+#define CSGO_VOTE_CHANGELEVEL_PASSED			"#SFUI_vote_passed_changelevel"
 
 // User vote to change next level.
-#define CSGO_VOTE_NEXTLEVEL_SINGLE_START	"#SFUI_vote_nextlevel"
+#define CSGO_VOTE_NEXTLEVEL_SINGLE_START		"#SFUI_vote_nextlevel"
 #define CSGO_VOTE_NEXTLEVEL_MULTIPLE_START	"#SFUI_vote_nextlevel_choices" // Started by server
 #define CSGO_VOTE_NEXTLEVEL_EXTEND_PASSED	"#SFUI_vote_passed_nextlevel_extend"
 #define CSGO_VOTE_NEXTLEVEL_PASSED			"#SFUI_vote_passed_nextlevel"
@@ -174,37 +205,51 @@
 // Generic functions
 // 
 
-new g_GameVersion = SOURCE_SDK_UNKNOWN;
+new g_VoteController = -1;
+new g_bUserBuf = false;
 
-bool:Game_IsGameSupported()
+bool:Game_IsGameSupported(String:engineName[]="", maxlength=0)
 {
-	// Guess which game we're using.
-	g_GameVersion = GuessSDKVersion(); // This value won't change
+	g_EngineVersion = GetEngineVersion();
+	g_bUserBuf = GetFeatureStatus(FeatureType_Native, "GetUserMessageType") == FeatureStatus_Available && GetUserMessageType() == UM_Protobuf;
 	
-	switch(g_GameVersion)
+	//LogMessage("Detected Engine version: %d", g_EngineVersion);
+	if (maxlength > 0)
 	{
-		case SOURCE_SDK_EPISODE2VALVE:
-		{
-			decl String:gameFolder[8];
-			GetGameFolderName(gameFolder, PLATFORM_MAX_PATH);
-			if (StrEqual(gameFolder, "tf", false) || StrEqual(gameFolder, "tf_beta", false))
-			{
-				return true;
-			}
-			else
-			{
-				// Fail for HL2:MP, DoD:S, and CS:S (on 1.4; CSS is its own engine on 1.5)
-				return false;
-			}
-		}
-		
-		case SOURCE_SDK_LEFT4DEAD, SOURCE_SDK_LEFT4DEAD2, SOURCE_SDK_CSGO:
+		GetEngineVersionName(g_EngineVersion, engineName, maxlength);
+	}
+	
+	switch (g_EngineVersion)
+	{
+		case Engine_Left4Dead, Engine_Left4Dead2, Engine_CSGO, Engine_TF2:
 		{
 			return true;
 		}
 	}
-
+	
 	return false;
+}
+
+bool:CheckVoteController()
+{
+	new entity = -1;
+	if (g_VoteController != -1)
+	{
+		entity = EntRefToEntIndex(g_VoteController);
+	}
+	
+	if (entity == -1)
+	{
+		entity = FindEntityByClassname(-1, "vote_controller");
+		if (entity == -1)
+		{
+			LogError("Could not find Vote Controller.");
+			return false;
+		}
+		
+		g_VoteController = EntIndexToEntRef(entity);
+	}
+	return true;
 }
 
 // All logic for choosing a game-specific function should happen here.
@@ -213,14 +258,14 @@ Game_ParseVote(const String:option[])
 {
 	new item = NATIVEVOTES_VOTE_INVALID;
 	
-	switch(g_GameVersion)
+	switch(g_EngineVersion)
 	{
-		case SOURCE_SDK_LEFT4DEAD, SOURCE_SDK_LEFT4DEAD2:
+		case Engine_Left4Dead, Engine_Left4Dead2:
 		{
 			item = L4DL4D2_ParseVote(option);
 		}
 		
-		case SOURCE_SDK_EPISODE2VALVE, SOURCE_SDK_CSGO:
+		case Engine_CSGO, Engine_TF2:
 		{
 			item = TF2CSGO_ParseVote(option);
 		}
@@ -232,14 +277,14 @@ Game_ParseVote(const String:option[])
 
 Game_GetMaxItems()
 {
-	switch (g_GameVersion)
+	switch (g_EngineVersion)
 	{
-		case SOURCE_SDK_LEFT4DEAD, SOURCE_SDK_LEFT4DEAD2:
+		case Engine_Left4Dead, Engine_Left4Dead2:
 		{
 			return L4DL4D2_COUNT;
 		}
 		
-		case SOURCE_SDK_EPISODE2VALVE, SOURCE_SDK_CSGO:
+		case Engine_CSGO, Engine_TF2:
 		{
 			return TF2CSGO_COUNT;
 		}
@@ -252,26 +297,26 @@ bool:Game_CheckVoteType(NativeVotesType:type)
 {
 	new bool:returnVal = false;
 	
-	switch(g_GameVersion)
+	switch(g_EngineVersion)
 	{
-		case SOURCE_SDK_EPISODE2VALVE:
-		{
-			returnVal = TF2_CheckVoteType(type);
-		}
-		
-		case SOURCE_SDK_LEFT4DEAD:
+		case Engine_Left4Dead:
 		{
 			returnVal = L4D_CheckVoteType(type);
 		}
 		
-		case SOURCE_SDK_LEFT4DEAD2:
+		case Engine_Left4Dead2:
 		{
 			returnVal = L4D2_CheckVoteType(type);
 		}
 		
-		case SOURCE_SDK_CSGO:
+		case Engine_CSGO:
 		{
 			returnVal = CSGO_CheckVoteType(type);
+		}
+
+		case Engine_TF2:
+		{
+			returnVal = TF2_CheckVoteType(type);
 		}
 	}
 	
@@ -282,26 +327,26 @@ bool:Game_CheckVotePassType(NativeVotesPassType:type)
 {
 	new bool:returnVal = false;
 	
-	switch(g_GameVersion)
+	switch(g_EngineVersion)
 	{
-		case SOURCE_SDK_EPISODE2VALVE:
-		{
-			returnVal = TF2_CheckVotePassType(type);
-		}
-		
-		case SOURCE_SDK_LEFT4DEAD:
+		case Engine_Left4Dead:
 		{
 			returnVal = L4D_CheckVotePassType(type);
 		}
 		
-		case SOURCE_SDK_LEFT4DEAD2:
+		case Engine_Left4Dead2:
 		{
 			returnVal = L4D2_CheckVotePassType(type);
 		}
 		
-		case SOURCE_SDK_CSGO:
+		case Engine_CSGO:
 		{
 			returnVal = CSGO_CheckVotePassType(type);
+		}
+		
+		case Engine_TF2:
+		{
+			returnVal = TF2_CheckVotePassType(type);
 		}
 	}
 	
@@ -328,21 +373,21 @@ bool:Game_DisplayVote(Handle:vote, clients[], num_clients)
 		return false;
 	}
 	
-	switch(g_GameVersion)
+	switch(g_EngineVersion)
 	{
-		case SOURCE_SDK_EPISODE2VALVE, SOURCE_SDK_CSGO:
-		{
-			TF2CSGO_DisplayVote(vote, clients, num_clients);
-		}
-		
-		case SOURCE_SDK_LEFT4DEAD:
+		case Engine_Left4Dead:
 		{
 			L4D_DisplayVote(vote, num_clients);
 		}
 		
-		case SOURCE_SDK_LEFT4DEAD2:
+		case Engine_Left4Dead2:
 		{
 			L4D2_DisplayVote(vote, clients, num_clients);
+		}
+		
+		case Engine_CSGO, Engine_TF2:
+		{
+			TF2CSGO_DisplayVote(vote, clients, num_clients);
 		}
 	}
 
@@ -351,14 +396,9 @@ bool:Game_DisplayVote(Handle:vote, clients[], num_clients)
 
 Game_DisplayVoteFail(Handle:vote, NativeVotesFailType:reason, client=0)
 {
-	switch(g_GameVersion)
+	switch(g_EngineVersion)
 	{
-		case SOURCE_SDK_EPISODE2VALVE, SOURCE_SDK_CSGO:
-		{
-			TF2CSGO_DisplayVoteFail(vote, reason, client);
-		}
-		
-		case SOURCE_SDK_LEFT4DEAD:
+		case Engine_Left4Dead:
 		{
 			if (!client)
 			{
@@ -366,24 +406,23 @@ Game_DisplayVoteFail(Handle:vote, NativeVotesFailType:reason, client=0)
 			}
 		}
 		
-		case SOURCE_SDK_LEFT4DEAD2:
+		case Engine_Left4Dead2:
 		{
 			L4D2_DisplayVoteFail(vote, client);
 		}
 		
+		case Engine_CSGO, Engine_TF2:
+		{
+			TF2CSGO_DisplayVoteFail(vote, reason, client);
+		}
 	}
 }
 
-Game_DisplayVotePass(Handle:vote, String:details[], client=0)
+Game_DisplayVotePass(Handle:vote, const String:details[], client=0)
 {
-	switch (g_GameVersion)
+	switch (g_EngineVersion)
 	{
-		case SOURCE_SDK_EPISODE2VALVE, SOURCE_SDK_CSGO:
-		{
-			TF2CSGO_DisplayVotePass(vote, details, client);
-		}
-
-		case SOURCE_SDK_LEFT4DEAD:
+		case Engine_Left4Dead:
 		{
 			if (!client)
 			{
@@ -391,24 +430,23 @@ Game_DisplayVotePass(Handle:vote, String:details[], client=0)
 			}
 		}
 
-		case SOURCE_SDK_LEFT4DEAD2:
+		case Engine_Left4Dead2:
 		{
 			L4D2_DisplayVotePass(vote, details, client);
 		}
 		
+		case Engine_CSGO, Engine_TF2:
+		{
+			TF2CSGO_DisplayVotePass(vote, details, client);
+		}
 	}
 }
 
-Game_DisplayVotePassEx(Handle:vote, NativeVotesPassType:passType, String:details[], client=0)
+Game_DisplayVotePassEx(Handle:vote, NativeVotesPassType:passType, const String:details[], client=0)
 {
-	switch (g_GameVersion)
+	switch (g_EngineVersion)
 	{
-		case SOURCE_SDK_EPISODE2VALVE, SOURCE_SDK_CSGO:
-		{
-			TF2CSGO_DisplayVotePassEx(vote, passType, details, client);
-		}
-
-		case SOURCE_SDK_LEFT4DEAD:
+		case Engine_Left4Dead:
 		{
 			if (!client)
 			{
@@ -416,51 +454,80 @@ Game_DisplayVotePassEx(Handle:vote, NativeVotesPassType:passType, String:details
 			}
 		}
 
-		case SOURCE_SDK_LEFT4DEAD2:
+		case Engine_Left4Dead2:
 		{
 			L4D2_DisplayVotePassEx(vote, passType, details, client);
 		}
 		
+		case Engine_CSGO, Engine_TF2:
+		{
+			TF2CSGO_DisplayVotePassEx(vote, passType, details, client);
+		}
+	}
+}
+
+Game_DisplayVotePassCustom(Handle:vote, const String:translation[], client)
+{
+	switch (g_EngineVersion)
+	{
+		case Engine_Left4Dead:
+		{
+			ThrowNativeError(SP_ERROR_NATIVE, "NativeVotes_DisplayPassCustom is not supported on L4D");
+		}
+
+		case Engine_Left4Dead2:
+		{
+			L4D2_VotePass(vote, L4D_VOTE_CUSTOM, translation, client);
+		}
+		
+		case Engine_CSGO:
+		{
+			TF2CSGO_VotePass(vote, CSGO_VOTE_CUSTOM, translation, client);
+		}
+
+		case Engine_TF2:
+		{
+			TF2CSGO_VotePass(vote, TF2_VOTE_CUSTOM, translation, client);
+		}
 	}
 }
 
 Game_DisplayCallVoteFail(client, NativeVotesCallFailType:reason, time)
 {
-	switch (g_GameVersion)
+	switch (g_EngineVersion)
 	{
-		case SOURCE_SDK_EPISODE2VALVE, SOURCE_SDK_CSGO:
-		{
-			TF2CSGO_DisplayCallVoteFail(client, reason, time);
-		}
-		
-		case SOURCE_SDK_LEFT4DEAD, SOURCE_SDK_LEFT4DEAD2:
+		case Engine_Left4Dead, Engine_Left4Dead2:
 		{
 			L4DL4D2_DisplayCallVoteFail(client, reason);
+		}
+		
+		case Engine_CSGO, Engine_TF2:
+		{
+			TF2CSGO_DisplayCallVoteFail(client, reason, time);
 		}
 	}
 }
 
 Game_ClientSelectedItem(Handle:vote, client, item)
 {
-	switch(g_GameVersion)
+	switch(g_EngineVersion)
 	{
-		case SOURCE_SDK_EPISODE2VALVE, SOURCE_SDK_CSGO:
-		{
-			TF2CSGO_ClientSelectedItem(vote, client, item);
-		}
-		
-		case SOURCE_SDK_LEFT4DEAD, SOURCE_SDK_LEFT4DEAD2:
+		case Engine_Left4Dead, Engine_Left4Dead2:
 		{
 			L4DL4D2_ClientSelectedItem(client, item);
 		}
 		
+		case Engine_CSGO, Engine_TF2:
+		{
+			TF2CSGO_ClientSelectedItem(vote, client, item);
+		}
 /*
-		case SOURCE_SDK_LEFT4DEAD:
+		case Engine_Left4Dead:
 		{
 			L4D_ClientSelectedItem(vote, client, item);
 		}
 		
-		case SOURCE_SDK_LEFT4DEAD2:
+		case Engine_Left4Dead2:
 		{
 			L4D2_ClientSelectedItem(client, item);
 		}
@@ -470,70 +537,102 @@ Game_ClientSelectedItem(Handle:vote, client, item)
 
 Game_UpdateVoteCounts(Handle:hVoteCounts, totalClients)
 {
-	switch(g_GameVersion)
+	switch(g_EngineVersion)
 	{
-		case SOURCE_SDK_EPISODE2VALVE, SOURCE_SDK_CSGO:
-		{
-			TF2CSGO_UpdateVoteCounts(hVoteCounts);
-		}
-
-		case SOURCE_SDK_LEFT4DEAD, SOURCE_SDK_LEFT4DEAD2:
+		case Engine_Left4Dead, Engine_Left4Dead2:
 		{
 			L4DL4D2_UpdateVoteCounts(hVoteCounts, totalClients);
+		}
+		
+		case Engine_CSGO, Engine_TF2:
+		{
+			TF2CSGO_UpdateVoteCounts(hVoteCounts);
 		}
 	}
 }
 
+/*
 Game_DisplayVoteSetup(client, const NativeVotesType:voteTypes[])
 {
-	switch (g_GameVersion)
+	switch (g_EngineVersion)
 	{
-		case SOURCE_SDK_EPISODE2VALVE, SOURCE_SDK_CSGO:
-		{
-			TF2CSGO_DisplayVoteSetup(client, voteTypes);
-		}
-
-		case SOURCE_SDK_LEFT4DEAD:
+		case Engine_Left4Dead:
 		{
 			//L4D_DisplayVoteSetup(client, voteTypes);
 		}
 		
-		case SOURCE_SDK_LEFT4DEAD2:
+		case Engine_Left4Dead2:
 		{
 			//L4D2_DisplayVoteSetup(client, voteTypes);
 		}
 		
+		case Engine_CSGO, Engine_TF2:
+		{
+			TF2CSGO_DisplayVoteSetup(client, voteTypes);
+		}
 	}
 }
-
+*/
 Game_UpdateClientCount(num_clients)
 {
-	switch(g_GameVersion)
+	switch(g_EngineVersion)
 	{
-		case SOURCE_SDK_EPISODE2VALVE, SOURCE_SDK_CSGO:
-		{
-			TF2CSGO_UpdateClientCount(num_clients);
-		}
-
-		case SOURCE_SDK_LEFT4DEAD, SOURCE_SDK_LEFT4DEAD2:
+		case Engine_Left4Dead, Engine_Left4Dead2:
 		{
 			L4DL4D2_UpdateClientCount(num_clients);
+		}
+		
+		case Engine_CSGO, Engine_TF2:
+		{
+			TF2CSGO_UpdateClientCount(num_clients);
 		}
 	}
 }
 
 Game_ResetVote()
 {
-	switch(g_GameVersion)
+	switch(g_EngineVersion)
 	{
-		case SOURCE_SDK_EPISODE2VALVE, SOURCE_SDK_CSGO:
+		case Engine_Left4Dead, Engine_Left4Dead2:
+		{
+			L4DL4D2_ResetVote();
+		}
+		
+		case Engine_CSGO, Engine_TF2:
 		{
 			TF2CSGO_ResetVote();
 		}
+	}
+}
 
-		case SOURCE_SDK_LEFT4DEAD, SOURCE_SDK_LEFT4DEAD2:
+Game_VoteYes(client)
+{
+	switch (g_EngineVersion)
+	{
+		case Engine_Left4Dead, Engine_Left4Dead2:
 		{
-			L4DL4D2_ResetVote();
+			FakeClientCommand(client, "Vote Yes");
+		}
+		
+		case Engine_CSGO, Engine_TF2:
+		{
+			FakeClientCommand(client, "vote option1");
+		}
+	}
+}
+
+Game_VoteNo(client)
+{
+	switch (g_EngineVersion)
+	{
+		case Engine_Left4Dead, Engine_Left4Dead2:
+		{
+			FakeClientCommand(client, "Vote No");
+		}
+		
+		case Engine_CSGO, Engine_TF2:
+		{
+			FakeClientCommand(client, "vote option2");
 		}
 	}
 }
@@ -584,13 +683,19 @@ L4DL4D2_UpdateVoteCounts(Handle:votes, totalClients)
 	SetEventInt(changeEvent, "potentialVotes", totalClients);
 	FireEvent(changeEvent);
 	
-	SetEntProp(g_VoteController, Prop_Send, "m_votesYes", yesVotes);
-	SetEntProp(g_VoteController, Prop_Send, "m_votesNo", noVotes);
+	if (CheckVoteController())
+	{
+		SetEntProp(g_VoteController, Prop_Send, "m_votesYes", yesVotes);
+		SetEntProp(g_VoteController, Prop_Send, "m_votesNo", noVotes);
+	}
 }
 
 L4DL4D2_UpdateClientCount(num_clients)
 {
-	SetEntProp(g_VoteController, Prop_Send, "m_potentialVotes", num_clients);
+	if (CheckVoteController())
+	{
+		SetEntProp(g_VoteController, Prop_Send, "m_potentialVotes", num_clients);
+	}
 }
 
 L4DL4D2_DisplayCallVoteFail(client, NativeVotesCallFailType:reason)
@@ -701,11 +806,14 @@ L4DL4D2_VotePassToTranslation(NativeVotesPassType:passType, String:translation[]
 
 L4DL4D2_ResetVote()
 {
-	SetEntProp(g_VoteController, Prop_Send, "m_onlyTeamToVote", NATIVEVOTES_ALL_TEAMS);
-	SetEntProp(g_VoteController, Prop_Send, "m_votesYes", 0);
-	SetEntProp(g_VoteController, Prop_Send, "m_votesNo", 0);
-	SetEntProp(g_VoteController, Prop_Send, "m_potentialVotes", 0);
-	SetEntProp(g_VoteController, Prop_Send, "m_activeIssueIndex", 0);
+	if (CheckVoteController())
+	{
+		SetEntProp(g_VoteController, Prop_Send, "m_onlyTeamToVote", NATIVEVOTES_ALL_TEAMS);
+		SetEntProp(g_VoteController, Prop_Send, "m_votesYes", 0);
+		SetEntProp(g_VoteController, Prop_Send, "m_votesNo", 0);
+		SetEntProp(g_VoteController, Prop_Send, "m_potentialVotes", 0);
+		SetEntProp(g_VoteController, Prop_Send, "m_activeIssueIndex", -1);
+	}
 }
 
 
@@ -750,14 +858,14 @@ L4D_ClientSelectedItem(Handle:vote, client, item)
 
 L4D_DisplayVote(Handle:vote, num_clients)
 {
-	new String:translation[64];
+	new String:translation[TRANSLATION_LENGTH];
 
 	new NativeVotesType:voteType = Data_GetType(vote);
 	
 	L4DL4D2_VoteTypeToTranslation(voteType, translation, sizeof(translation));
 
-	decl String:details[MAX_DETAILS_SIZE];
-	Data_GetDetails(vote, details, MAX_DETAILS_SIZE);
+	decl String:details[MAX_VOTE_DETAILS_LENGTH];
+	Data_GetDetails(vote, details, MAX_VOTE_DETAILS_LENGTH);
 	
 	new team = Data_GetTeam(vote);
 	
@@ -768,12 +876,15 @@ L4D_DisplayVote(Handle:vote, num_clients)
 	SetEventString(voteStart, "param1", details);
 	FireEvent(voteStart);
 	
-	SetEntProp(g_VoteController, Prop_Send, "m_onlyTeamToVote", team);
-	SetEntProp(g_VoteController, Prop_Send, "m_votesYes", 0);
-	SetEntProp(g_VoteController, Prop_Send, "m_votesNo", 0);
-	SetEntProp(g_VoteController, Prop_Send, "m_potentialVotes", num_clients);
-	// TODO: Need to look these values up
-	//SetEntProp(g_VoteController, Prop_Send, "m_activeIssueIndex", Data_GetType(vote));
+	if (CheckVoteController())
+	{
+		SetEntProp(g_VoteController, Prop_Send, "m_onlyTeamToVote", team);
+		SetEntProp(g_VoteController, Prop_Send, "m_votesYes", 0);
+		SetEntProp(g_VoteController, Prop_Send, "m_votesNo", 0);
+		SetEntProp(g_VoteController, Prop_Send, "m_potentialVotes", num_clients);
+		// TODO: Need to look these values up
+		SetEntProp(g_VoteController, Prop_Send, "m_activeIssueIndex", 0); // For now, set to 0 to block in-game votes
+	}
 }
 
 L4D_VoteEnded()
@@ -782,16 +893,21 @@ L4D_VoteEnded()
 	FireEvent(endEvent);
 }
 
-L4D_DisplayVotePass(Handle:vote, String:details[])
+L4D_DisplayVotePass(Handle:vote, const String:details[])
 {
 	L4D_DisplayVotePassEx(vote, VoteTypeToVotePass(Data_GetType(vote)), details);
 }
 
-L4D_DisplayVotePassEx(Handle:vote, NativeVotesPassType:passType, String:details[])
+L4D_DisplayVotePassEx(Handle:vote, NativeVotesPassType:passType, const String:details[])
 {
-	decl String:translation[64];
+	decl String:translation[TRANSLATION_LENGTH];
 	L4DL4D2_VotePassToTranslation(passType, translation, sizeof(translation));
-	
+
+	L4D_VotePass(vote, translation, details);
+}
+
+L4D_VotePass(Handle:vote, const String:translation[], const String:details[])
+{
 	L4D_VoteEnded();
 	
 	new Handle:passEvent = CreateEvent("vote_passed");
@@ -845,31 +961,38 @@ bool:L4D_CheckVotePassType(NativeVotesPassType:passType)
 
 L4D2_DisplayVote(Handle:vote, clients[], num_clients)
 {
-	new String:translation[64];
+	new String:translation[TRANSLATION_LENGTH];
 
 	new NativeVotesType:voteType = Data_GetType(vote);
 	
 	L4DL4D2_VoteTypeToTranslation(voteType, translation, sizeof(translation));
 
-	decl String:details[MAX_DETAILS_SIZE];
+	decl String:details[MAX_VOTE_DETAILS_LENGTH];
 	
 	new team = Data_GetTeam(vote);
+	new bool:bCustom = false;
 	
 	switch (voteType)
 	{
 		case NativeVotesType_AlltalkOn:
 		{
-			strcopy(details, MAX_DETAILS_SIZE, L4D2_VOTE_ALLTALK_ENABLE);
+			strcopy(details, MAX_VOTE_DETAILS_LENGTH, L4D2_VOTE_ALLTALK_ENABLE);
 		}
 		
 		case NativeVotesType_AlltalkOff:
 		{
-			strcopy(details, MAX_DETAILS_SIZE, L4D2_VOTE_ALLTALK_DISABLE);
+			strcopy(details, MAX_VOTE_DETAILS_LENGTH, L4D2_VOTE_ALLTALK_DISABLE);
+		}
+		
+		case NativeVotesType_Custom_YesNo, NativeVotesType_Custom_Mult:
+		{
+			Data_GetTitle(vote, details, MAX_VOTE_DETAILS_LENGTH);
+			bCustom = true;
 		}
 		
 		default:
 		{
-			Data_GetDetails(vote, details, MAX_DETAILS_SIZE);
+			Data_GetDetails(vote, details, MAX_VOTE_DETAILS_LENGTH);
 		}
 	}
 	
@@ -881,46 +1004,80 @@ L4D2_DisplayVote(Handle:vote, clients[], num_clients)
 		GetClientName(initiator, initiatorName, MAX_NAME_LENGTH);
 	}
 
-	new Handle:voteStart = StartMessage("VoteStart", clients, num_clients, USERMSG_RELIABLE);
-	BfWriteByte(voteStart, team);
-	BfWriteByte(voteStart, initiator);
-	BfWriteString(voteStart, translation);
-	BfWriteString(voteStart, details);
-	BfWriteString(voteStart, initiatorName);
-	EndMessage();
+	for (new i = 0; i < num_clients; ++i)
+	{
+		g_newMenuTitle[0] = '\0';
+		
+		new MenuAction:actions = Data_GetActions(vote);
+		
+		new Action:changeTitle = Plugin_Continue;
+		if (bCustom && actions & MenuAction_Display)
+		{
+			g_curDisplayClient = clients[i];
+			changeTitle = Action:DoAction(vote, MenuAction_Display, clients[i], 0);
+		}
+		
+		g_curDisplayClient = 0;
 	
-	SetEntProp(g_VoteController, Prop_Send, "m_onlyTeamToVote", team);
-	SetEntProp(g_VoteController, Prop_Send, "m_votesYes", 0);
-	SetEntProp(g_VoteController, Prop_Send, "m_votesNo", 0);
-	SetEntProp(g_VoteController, Prop_Send, "m_potentialVotes", num_clients);
-	// TODO: Need to look these values up
-	//SetEntProp(g_VoteController, Prop_Send, "m_activeIssueIndex", Data_GetType(vote));
+		new Handle:voteStart = StartMessageOne("VoteStart", clients[i], USERMSG_RELIABLE);
+		BfWriteByte(voteStart, team);
+		BfWriteByte(voteStart, initiator);
+		BfWriteString(voteStart, translation);
+		if (changeTitle == Plugin_Changed)
+		{
+			BfWriteString(voteStart, g_newMenuTitle);
+		}
+		else
+		{
+			BfWriteString(voteStart, details);
+		}
+		BfWriteString(voteStart, initiatorName);
+		EndMessage();
+	}
+	
+	if (CheckVoteController())
+	{
+		SetEntProp(g_VoteController, Prop_Send, "m_onlyTeamToVote", team);
+		SetEntProp(g_VoteController, Prop_Send, "m_votesYes", 0);
+		SetEntProp(g_VoteController, Prop_Send, "m_votesNo", 0);
+		SetEntProp(g_VoteController, Prop_Send, "m_potentialVotes", num_clients);
+		// TODO: Need to look these values up
+		SetEntProp(g_VoteController, Prop_Send, "m_activeIssueIndex", 0); // For now set to 0 to block ingame votes
+	}
 }
 
-L4D2_DisplayVotePass(Handle:vote, String:details[], client=0)
+L4D2_DisplayVotePass(Handle:vote, const String:details[], client=0)
 {
 	L4D2_DisplayVotePassEx(vote, VoteTypeToVotePass(Data_GetType(vote)), details, client);
 }
 
-L4D2_DisplayVotePassEx(Handle:vote, NativeVotesPassType:passType, String:details[], client=0)
+L4D2_DisplayVotePassEx(Handle:vote, NativeVotesPassType:passType, const String:details[], client=0)
 {
-	decl String:translation[64];
+	decl String:translation[TRANSLATION_LENGTH];
+	
+	L4DL4D2_VotePassToTranslation(passType, translation, sizeof(translation));
 	
 	switch (passType)
 	{
 		case NativeVotesPass_AlltalkOn:
 		{
-			strcopy(details, MAX_DETAILS_SIZE, L4D2_VOTE_ALLTALK_ENABLE);
+			L4D2_VotePass(vote, translation, L4D2_VOTE_ALLTALK_ENABLE, client);
 		}
 		
 		case NativeVotesPass_AlltalkOff:
 		{
-			strcopy(details, MAX_DETAILS_SIZE, L4D2_VOTE_ALLTALK_DISABLE);
+			L4D2_VotePass(vote, translation, L4D2_VOTE_ALLTALK_DISABLE, client);
+		}
+		
+		default:
+		{
+			L4D2_VotePass(vote, translation, details, client);
 		}
 	}
-	
-	L4DL4D2_VotePassToTranslation(passType, translation, sizeof(translation));
-	
+}
+
+L4D2_VotePass(Handle:vote, const String:translation[], const String:details[], client=0)
+{
 	new Handle:votePass;
 	if (!client)
 	{
@@ -1012,118 +1169,226 @@ TF2CSGO_ClientSelectedItem(Handle:vote, client, item)
 
 TF2CSGO_UpdateVoteCounts(Handle:votes)
 {
-	new size = GetArraySize(votes);
-	for (new i = 0; i < size; i++)
+	if (CheckVoteController())
 	{
-		SetEntProp(g_VoteController, Prop_Send, "m_nVoteOptionCount", GetArrayCell(votes, i), 4, i);
+		new size = GetArraySize(votes);
+		for (new i = 0; i < size; i++)
+		{
+			SetEntProp(g_VoteController, Prop_Send, "m_nVoteOptionCount", GetArrayCell(votes, i), 4, i);
+		}
 	}
 }
 
 TF2CSGO_UpdateClientCount(num_clients)
 {
-	SetEntProp(g_VoteController, Prop_Send, "m_nPotentialVotes", num_clients);
+	if (CheckVoteController())
+	{
+		SetEntProp(g_VoteController, Prop_Send, "m_nPotentialVotes", num_clients);
+	}
 }
 
 TF2CSGO_DisplayVote(Handle:vote, clients[], num_clients)
 {
-	new Handle:optionsEvent = CreateEvent("vote_options");
-	
-	new maxCount = Data_GetItemCount(vote);
-	
-	for (new i = 0; i < maxCount; i++)
-	{
-		decl String:option[8];
-		Format(option, sizeof(option), "%s%d", TF2CSGO_VOTE_PREFIX, i+1);
-		
-		decl String:display[64];
-		Data_GetItemDisplay(vote, i, display, sizeof(display));
-		SetEventString(optionsEvent, option, display);
-	}
-	SetEventInt(optionsEvent, "count", maxCount);
-	FireEvent(optionsEvent);
-	
-	new String:translation[64];
-	new String:otherTeamString[64];
-	new bool:bYesNo = true;
-	
 	new NativeVotesType:voteType = Data_GetType(vote);
 	
-	switch(g_GameVersion)
+	new String:translation[TRANSLATION_LENGTH];
+	new String:otherTeamString[TRANSLATION_LENGTH];
+	new bool:bYesNo = true;
+	new bool:bCustom = false;
+	
+	new String:details[MAX_VOTE_DETAILS_LENGTH];
+	
+	switch (voteType)
 	{
-		case SOURCE_SDK_EPISODE2VALVE:
+		case NativeVotesType_Custom_YesNo, NativeVotesType_Custom_Mult:
 		{
-			bYesNo = TF2_VoteTypeToTranslation(voteType, translation, sizeof(translation));
+			Data_GetTitle(vote, details, MAX_VOTE_DETAILS_LENGTH);
+			bCustom = true;
 		}
 		
-		case SOURCE_SDK_CSGO:
+		default:
+		{
+			Data_GetDetails(vote, details, MAX_VOTE_DETAILS_LENGTH);
+		}
+	}
+	
+	switch(g_EngineVersion)
+	{
+		case Engine_CSGO:
 		{
 			bYesNo = CSGO_VoteTypeToTranslation(voteType, translation, sizeof(translation));
 			CSGO_VoteTypeToVoteOtherTeamString(voteType, otherTeamString, sizeof(otherTeamString));
 		}
+		
+		case Engine_TF2:
+		{
+			bYesNo = TF2_VoteTypeToTranslation(voteType, translation, sizeof(translation));
+		}
 	}
 	
-	decl String:details[MAX_DETAILS_SIZE];
-	Data_GetDetails(vote, details, MAX_DETAILS_SIZE);
+	// According to Source SDK 2013, vote_options is only sent for a multiple choice vote.
+	if (!bYesNo)
+	{
+		new Handle:optionsEvent = CreateEvent("vote_options");
+		
+		new maxCount = Data_GetItemCount(vote);
+		
+		for (new i = 0; i < maxCount; i++)
+		{
+			decl String:option[8];
+			Format(option, sizeof(option), "%s%d", TF2CSGO_VOTE_PREFIX, i+1);
+			
+			decl String:display[TRANSLATION_LENGTH];
+			Data_GetItemDisplay(vote, i, display, sizeof(display));
+			SetEventString(optionsEvent, option, display);
+		}
+		SetEventInt(optionsEvent, "count", maxCount);
+		FireEvent(optionsEvent);
+	}
 	
 	new team = Data_GetTeam(vote);
 	
-	new Handle:voteStart = StartMessage("VoteStart", clients, num_clients, USERMSG_RELIABLE);
+	for (new i = 0; i < num_clients; ++i)
+	{
+		g_newMenuTitle[0] = '\0';
+		
+		new MenuAction:actions = Data_GetActions(vote);
+		
+		new Action:changeTitle = Plugin_Continue;
+		if (bCustom && actions & MenuAction_Display)
+		{
+			g_curDisplayClient = clients[i];
+			changeTitle = Action:DoAction(vote, MenuAction_Display, clients[i], 0);
+		}
+		
+		g_curDisplayClient = 0;
+		new maxCount = Data_GetItemCount(vote);
+		
+		new Handle:optionsEvent = CreateEvent("vote_options");
+		for (new j = 0; j < maxCount; j++)
+		{
+			decl String:option[8];
+			Format(option, sizeof(option), "%s%d", TF2CSGO_VOTE_PREFIX, j+1);
+			
+			decl String:display[TRANSLATION_LENGTH];
+			Data_GetItemDisplay(vote, j, display, TRANSLATION_LENGTH);
+			SetEventString(optionsEvent, option, display);
+		}
+		SetEventInt(optionsEvent, "count", maxCount);
+		FireEvent(optionsEvent);
+		
+		if (!bYesNo && actions & MenuAction_DisplayItem)
+		{
+			optionsEvent = CreateEvent("vote_options");
+			
+			for (new j = 0; j < maxCount; j++)
+			{
+				new Action:changeItem = Plugin_Continue;
+				g_curItemClient = clients[i];
+				g_newMenuItem[0] = '\0';
+				
+				changeItem = Action:DoAction(vote, MenuAction_DisplayItem, clients[i], j);
+				g_curItemClient = 0;
+				
+				decl String:option[8];
+				Format(option, sizeof(option), "%s%d", TF2CSGO_VOTE_PREFIX, j+1);
+				
+				decl String:display[TRANSLATION_LENGTH];
+				if (changeItem == Plugin_Changed)
+				{
+					strcopy(display, TRANSLATION_LENGTH, g_newMenuItem);
+				}
+				else
+				{
+					Data_GetItemDisplay(vote, j, display, sizeof(display));
+				}
+				SetEventString(optionsEvent, option, display);
+			}
+			SetEventInt(optionsEvent, "count", maxCount);
+			FireEvent(optionsEvent);
+		}
+		
+		new Handle:voteStart = StartMessageOne("VoteStart", clients[i], USERMSG_RELIABLE);
+		
+		if(g_bUserBuf)
+		{
+			PbSetInt(voteStart, "team", team);
+			PbSetInt(voteStart, "ent_idx", Data_GetInitiator(vote));
+			PbSetString(voteStart, "disp_str", translation);
+			if (bCustom && changeTitle == Plugin_Changed)
+			{
+				PbSetString(voteStart, "details_str", g_newMenuTitle);
+			}
+			else
+			{
+				PbSetString(voteStart, "details_str", details);
+			}
+			PbSetBool(voteStart, "is_yes_no_vote", bYesNo);
+			PbSetString(voteStart, "other_team_str", otherTeamString);
+			// TODO: Need to look these values up. These values may correspond to the order votes show up in for VoteSetup
+			PbSetInt(voteStart, "vote_type", 0); // For now, set to 0 to block in-game votes
+		}
+		else
+		{
+			BfWriteByte(voteStart, team);
+			BfWriteByte(voteStart, Data_GetInitiator(vote));
+			BfWriteString(voteStart, translation);
+			if (bCustom && changeTitle == Plugin_Changed)
+			{
+				BfWriteString(voteStart, g_newMenuTitle);
+			}
+			else
+			{
+				BfWriteString(voteStart, details);
+			}
+			BfWriteBool(voteStart, bYesNo);
+		}
+		EndMessage();
+	}
 	
-	if(GetFeatureStatus(FeatureType_Native, "GetUserMessageType") == FeatureStatus_Available && GetUserMessageType() == UM_Protobuf)
-	{
-		PbSetInt(voteStart, "team", team);
-		PbSetInt(voteStart, "ent_idx", Data_GetInitiator(vote));
-		PbSetString(voteStart, "disp_str", translation);
-		PbSetString(voteStart, "details_str", details);
-		PbSetBool(voteStart, "is_yes_no_vote", bYesNo);
-		PbSetString(voteStart, "other_team_str", otherTeamString);
-		// TODO: Need to look these values up
-		//PbSetInt(voteStart, "vote_type", 0); // Need to check values for this
-	}
-	else
-	{
-		BfWriteByte(voteStart, team);
-		BfWriteByte(voteStart, Data_GetInitiator(vote));
-		BfWriteString(voteStart, translation);
-		BfWriteString(voteStart, details);
-		BfWriteBool(voteStart, bYesNo);
-	}
-
-	EndMessage();
+	g_curDisplayClient = 0;
 	
-	SetEntProp(g_VoteController, Prop_Send, "m_iOnlyTeamToVote", team);
-	for (new i = 0; i < 5; i++)
+	if (CheckVoteController())
 	{
-		SetEntProp(g_VoteController, Prop_Send, "m_nVoteOptionCount", 0, _, i);
+		SetEntProp(g_VoteController, Prop_Send, "m_iOnlyTeamToVote", team);
+		for (new i = 0; i < 5; i++)
+		{
+			SetEntProp(g_VoteController, Prop_Send, "m_nVoteOptionCount", 0, _, i);
+		}
+		SetEntProp(g_VoteController, Prop_Send, "m_nPotentialVotes", num_clients);
+		SetEntProp(g_VoteController, Prop_Send, "m_bIsYesNoVote", bYesNo);
+		// TODO: Need to look these values up. These values may correspond to the order votes show up in for VoteSetup
+		SetEntProp(g_VoteController, Prop_Send, "m_iActiveIssueIndex", 0); // For now, set to 0 to block in-game votes
 	}
-	SetEntProp(g_VoteController, Prop_Send, "m_nPotentialVotes", num_clients);
-	SetEntProp(g_VoteController, Prop_Send, "m_bIsYesNoVote", bYesNo);
-	// TODO: Need to look these values up
-	//SetEntProp(g_VoteController, Prop_Send, "m_iActiveIssueIndex", voteType);
 }
 
-TF2CSGO_DisplayVotePass(Handle:vote, String:details[], client=0)
+TF2CSGO_DisplayVotePass(Handle:vote, const String:details[], client=0)
 {
 	TF2CSGO_DisplayVotePassEx(vote, VoteTypeToVotePass(Data_GetType(vote)), details, client);
 }
 
-TF2CSGO_DisplayVotePassEx(Handle:vote, NativeVotesPassType:passType, String:details[], client=0)
+TF2CSGO_DisplayVotePassEx(Handle:vote, NativeVotesPassType:passType, const String:details[], client=0)
 {
-	decl String:translation[64];
+	decl String:translation[TRANSLATION_LENGTH];
 	
-	switch(g_GameVersion)
+	switch(g_EngineVersion)
 	{
-		case SOURCE_SDK_EPISODE2VALVE:
-		{
-			TF2_VotePassToTranslation(passType, translation, sizeof(translation));
-		}
-		
-		case SOURCE_SDK_CSGO:
+		case Engine_CSGO:
 		{
 			CSGO_VotePassToTranslation(passType, translation, sizeof(translation));
 		}
+		
+		case Engine_TF2:
+		{
+			TF2_VotePassToTranslation(passType, translation, sizeof(translation));
+		}
 	}
 	
+	TF2CSGO_VotePass(vote, translation, details, client);
+}
+
+TF2CSGO_VotePass(Handle:vote, const String:translation[], const String:details[], client=0)
+{
 	new Handle:votePass = INVALID_HANDLE;
 	
 	if (!client)
@@ -1135,7 +1400,7 @@ TF2CSGO_DisplayVotePassEx(Handle:vote, NativeVotesPassType:passType, String:deta
 		votePass = StartMessageOne("VotePass", client, USERMSG_RELIABLE);
 	}
 
-	if(GetFeatureStatus(FeatureType_Native, "GetUserMessageType") == FeatureStatus_Available && GetUserMessageType() == UM_Protobuf)
+	if(g_bUserBuf)
 	{
 		PbSetInt(votePass, "team", Data_GetTeam(vote));
 		PbSetString(votePass, "disp_str", translation);
@@ -1163,7 +1428,7 @@ TF2CSGO_DisplayVoteFail(Handle:vote, NativeVotesFailType:reason, client=0)
 		voteFailed = StartMessageOne("VoteFailed", client, USERMSG_RELIABLE);
 	}
 	
-	if(GetFeatureStatus(FeatureType_Native, "GetUserMessageType") == FeatureStatus_Available && GetUserMessageType() == UM_Protobuf)
+	if(g_bUserBuf)
 	{
 		PbSetInt(voteFailed, "team", Data_GetTeam(vote));
 		PbSetInt(voteFailed, "reason", _:reason);
@@ -1180,7 +1445,7 @@ TF2CSGO_DisplayCallVoteFail(client, NativeVotesCallFailType:reason, time)
 {
 	new Handle:callVoteFail = StartMessageOne("CallVoteFailed", client, USERMSG_RELIABLE);
 
-	if(GetFeatureStatus(FeatureType_Native, "GetUserMessageType") == FeatureStatus_Available && GetUserMessageType() == UM_Protobuf)
+	if(g_bUserBuf)
 	{
 		PbSetInt(callVoteFail, "reason", _:reason);
 		PbSetInt(callVoteFail, "time", time);
@@ -1193,6 +1458,7 @@ TF2CSGO_DisplayCallVoteFail(client, NativeVotesCallFailType:reason, time)
 	EndMessage();
 }
 
+/*
 TF2CSGO_VoteTypeToVoteString(NativeVotesType:voteType, String:voteString[], maxlength)
 {
 	new bool:valid = false;
@@ -1282,7 +1548,7 @@ TF2CSGO_DisplayVoteSetup(client, const NativeVotesType:voteTypes[])
 	
 	new Handle:voteSetup = StartMessageOne("VoteSetup", client, USERMSG_RELIABLE);
 	
-	if(GetFeatureStatus(FeatureType_Native, "GetUserMessageType") == FeatureStatus_Available && GetUserMessageType() == UM_Protobuf)
+	if(g_bUserBuf)
 	{
 		for (new i = 0; i < count; ++i)
 		{
@@ -1300,17 +1566,21 @@ TF2CSGO_DisplayVoteSetup(client, const NativeVotesType:voteTypes[])
 	
 	EndMessage();
 }
+*/
 
 TF2CSGO_ResetVote()
 {
-	SetEntProp(g_VoteController, Prop_Send, "m_iOnlyTeamToVote", NATIVEVOTES_ALL_TEAMS);
-	for (new i = 0; i < 5; i++)
-	{
-		SetEntProp(g_VoteController, Prop_Send, "m_nVoteOptionCount", 0, _, i);
+	if (CheckVoteController())
+	{	
+		SetEntProp(g_VoteController, Prop_Send, "m_iOnlyTeamToVote", NATIVEVOTES_ALL_TEAMS);
+		for (new i = 0; i < 5; i++)
+		{
+			SetEntProp(g_VoteController, Prop_Send, "m_nVoteOptionCount", 0, _, i);
+		}
+		SetEntProp(g_VoteController, Prop_Send, "m_nPotentialVotes", 0);
+		SetEntProp(g_VoteController, Prop_Send, "m_bIsYesNoVote", true);
+		SetEntProp(g_VoteController, Prop_Send, "m_iActiveIssueIndex", -1);
 	}
-	SetEntProp(g_VoteController, Prop_Send, "m_nPotentialVotes", 0);
-	SetEntProp(g_VoteController, Prop_Send, "m_bIsYesNoVote", true);
-	SetEntProp(g_VoteController, Prop_Send, "m_iActiveIssueIndex", 0);
 }
 
 //----------------------------------------------------------------------------
@@ -1323,7 +1593,9 @@ bool:TF2_CheckVoteType(NativeVotesType:voteType)
 		case NativeVotesType_Custom_YesNo, NativeVotesType_Restart,
 		NativeVotesType_Kick, NativeVotesType_KickIdle, NativeVotesType_KickScamming, NativeVotesType_KickCheating,
 		NativeVotesType_ChgLevel, NativeVotesType_NextLevel, NativeVotesType_ScrambleNow, NativeVotesType_ScrambleEnd,
-		NativeVotesType_ChgMission:
+		NativeVotesType_ChgMission, NativeVotesType_StartRound, NativeVotesType_Eternaween,
+		NativeVotesType_AutoBalanceOn, NativeVotesType_AutoBalanceOff,
+		NativeVotesType_ClassLimitsOn, NativeVotesType_ClassLimitsOff:
 		{
 			return true;
 		}
@@ -1343,7 +1615,9 @@ bool:TF2_CheckVotePassType(NativeVotesPassType:passType)
 	{
 		case NativeVotesPass_Custom, NativeVotesPass_Restart, NativeVotesPass_ChgLevel,
 		NativeVotesPass_Kick, NativeVotesPass_NextLevel, NativeVotesPass_Extend,
-		NativeVotesPass_Scramble, NativeVotesPass_ChgMission:
+		NativeVotesPass_Scramble, NativeVotesPass_ChgMission, NativeVotesPass_StartRound, NativeVotesPass_Eternaween,
+		NativeVotesPass_AutoBalanceOn, NativeVotesPass_AutoBalanceOff,
+		NativeVotesPass_ClassLimitsOn, NativeVotesPass_ClassLimitsOff:
 		{
 			return true;
 		}
@@ -1420,6 +1694,36 @@ bool:TF2_VoteTypeToTranslation(NativeVotesType:voteType, String:translation[], m
 			strcopy(translation, maxlength, TF2_VOTE_CHANGEMISSION_START);
 		}
 		
+		case NativeVotesType_StartRound:
+		{
+			strcopy(translation, maxlength, TF2_VOTE_ROUND_START);
+		}
+		
+		case NativeVotesType_Eternaween:
+		{
+			strcopy(translation, maxlength, TF2_VOTE_ETERNAWEEN_START);
+		}
+		
+		case NativeVotesType_AutoBalanceOn:
+		{
+			strcopy(translation, maxlength, TF2_VOTE_AUTOBALANCE_ENABLE_START);
+		}
+		
+		case NativeVotesType_AutoBalanceOff:
+		{
+			strcopy(translation, maxlength, TF2_VOTE_AUTOBALANCE_DISABLE_START);
+		}
+		
+		case NativeVotesType_ClassLimitsOn:
+		{
+			strcopy(translation, maxlength, TF2_VOTE_CLASSLIMITS_ENABLE_START);
+		}
+		
+		case NativeVotesType_ClassLimitsOff:
+		{
+			strcopy(translation, maxlength, TF2_VOTE_CLASSLIMITS_DISABLE_START);
+		}
+		
 		default:
 		{
 			strcopy(translation, maxlength, TF2_VOTE_CUSTOM);
@@ -1466,6 +1770,36 @@ TF2_VotePassToTranslation(NativeVotesPassType:passType, String:translation[], ma
 		case NativeVotesPass_ChgMission:
 		{
 			strcopy(translation, maxlength, TF2_VOTE_CHANGEMISSION_PASSED);
+		}
+		
+		case NativeVotesPass_StartRound:
+		{
+			strcopy(translation, maxlength, TF2_VOTE_ROUND_PASSED);
+		}
+		
+		case NativeVotesPass_Eternaween:
+		{
+			strcopy(translation, maxlength, TF2_VOTE_ETERNAWEEN_PASSED);
+		}
+		
+		case NativeVotesPass_AutoBalanceOn:
+		{
+			strcopy(translation, maxlength, TF2_VOTE_AUTOBALANCE_ENABLE_PASSED);
+		}
+		
+		case NativeVotesPass_AutoBalanceOff:
+		{
+			strcopy(translation, maxlength, TF2_VOTE_AUTOBALANCE_DISABLE_PASSED);
+		}
+		
+		case NativeVotesPass_ClassLimitsOn:
+		{
+			strcopy(translation, maxlength, TF2_VOTE_CLASSLIMITS_ENABLE_PASSED);
+		}
+		
+		case NativeVotesPass_ClassLimitsOff:
+		{
+			strcopy(translation, maxlength, TF2_VOTE_CLASSLIMITS_DISABLE_PASSED);
 		}
 		
 		default:

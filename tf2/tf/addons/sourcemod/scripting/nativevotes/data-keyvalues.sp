@@ -120,6 +120,21 @@ Data_SetDetails(Handle:vote, const String:details[])
 	KvSetString(vote, "details", details);
 }
 
+Data_GetTitle(Handle:vote, String:title[], maxlength)
+{
+	// Shim for older code that sets custom vote titles in details
+	KvGetString(vote, "custom_title", title, maxlength);
+	if (strlen(title) == 0)
+	{
+		KvGetString(vote, "details", title, maxlength);
+	}
+}
+
+Data_SetTitle(Handle:vote, const String:title[])
+{
+	KvSetString(vote, "custom_title", title);
+}
+
 Data_GetTarget(Handle:vote)
 {
 	return KvGetNum(vote, "target");
@@ -163,7 +178,7 @@ Handle:Data_GetResultCallback(Handle:vote)
 
 Handle:Data_CreateVote(NativeVotesType:voteType, MenuAction:actions)
 {
-	new Handle:handler = CreateForward(ET_Ignore, Param_Cell, Param_Cell, Param_Cell, Param_Cell);
+	new Handle:handler = CreateForward(ET_Single, Param_Cell, Param_Cell, Param_Cell, Param_Cell);
 	new Handle:voteResults = CreateForward(ET_Ignore, Param_Cell, Param_Cell, Param_Cell, Param_Array, Param_Array, Param_Cell, Param_Array, Param_Array);
 	
 	new Handle:vote = CreateKeyValues("NativeVote");
@@ -176,12 +191,25 @@ Handle:Data_CreateVote(NativeVotesType:voteType, MenuAction:actions)
 	KvSetNum(vote, "actions", _:actions);
 	KvSetNum(vote, "result_callback", _:voteResults);
 	KvSetNum(vote, "initiator", NATIVEVOTES_SERVER_INDEX);
-	KvSetNum(vote, "team", NATIVEVOTES_ALL_TEAMS);
+	if (g_EngineVersion == Engine_TF2)
+	{
+		KvSetNum(vote, "team", NATIVEVOTES_TF2_ALL_TEAMS);
+	}
+	else
+	{
+		KvSetNum(vote, "team", NATIVEVOTES_ALL_TEAMS);
+	}
+	KvSetString(vote, "custom_title", "");
 	
 	KvSetNum(vote, INFO, _:CreateArray(ByteCountToCells(INFO_LENGTH)));
 	KvSetNum(vote, DISPLAY, _:CreateArray(ByteCountToCells(INFO_LENGTH)));
 	
 	return vote;
+}
+
+MenuAction:Data_GetActions(Handle:vote)
+{
+	return MenuAction:KvGetNum(vote, "actions");
 }
 
 bool:Data_AddItem(Handle:vote, const String:info[], const String:display[])

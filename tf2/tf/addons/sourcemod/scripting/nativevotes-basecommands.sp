@@ -39,6 +39,8 @@
 
 #define VERSION "1.0"
 
+#pragma semicolon 1
+
 new Handle:hTopMenu;
 
 public Plugin:myinfo = 
@@ -83,12 +85,12 @@ public Action:Command_CancelVote(client, const String:command[], argc)
 		}
 		
 		ReplyToCommand(client, "%t", "No Access");
-		return Plugin_Handled;
+		return Plugin_Stop;
 	}
 	
 	if (PerformCancelVote(client))
 	{
-		return Plugin_Handled;
+		return Plugin_Stop;
 	}
 	else
 	{
@@ -139,17 +141,17 @@ public Action:Command_ReVote(client, const String:command[], argc)
 		}
 		
 		ReplyToCommand(client, "[NV] %t", "Cannot participate in vote");
-		return Plugin_Handled;
+		return Plugin_Stop;
 	}
 	
 	if (NativeVotes_RedrawClientVote(client))
 	{
-		return Plugin_Handled
+		return Plugin_Stop;
 	}
 	else if (!IsVoteInProgress())
 	{
 		ReplyToCommand(client, "[NV] %t", "Cannot change vote");
-		return Plugin_Handled;
+		return Plugin_Stop;
 	}
 	
 	return Plugin_Continue;
