@@ -49,3 +49,5 @@ koth_sawmill
 koth_viaduct
 
 pd_watergate
+
+tc_hydro
