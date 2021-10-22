@@ -3,3 +3,4 @@
 - !nominate does not do anything
 - implement native votes
 - kick new accounts that are younger than 24 hours
+- always full moon
