@@ -1,9 +1,9 @@
 # zesty-tf2-servers
-Custom files and configuration data for Zesty Jesus' TF2 server(s)
+Custom files and configuration data for [Zesty Jesus' TF2 server(s)](https://zestyjesus.com)
 
 
 
-## This project uses files from the following addons and tools:
+### This project uses files from the following addons and tools:
 
 [MetaMod:Source](https://www.sourcemm.net/)
 
@@ -24,3 +24,7 @@ Custom files and configuration data for Zesty Jesus' TF2 server(s)
 [Updater](https://forums.alliedmods.net/showthread.php?t=169095)
 
 [Unused Voicelines](https://forums.alliedmods.net/showthread.php?p=2733016)
+
+[Vote Scramble](https://forums.alliedmods.net/showthread.php?p=657631)
+
+[WaitingDoors](https://github.com/sapphonie/WaitingDoors)
