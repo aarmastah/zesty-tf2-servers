@@ -23,7 +23,9 @@
 
 # Allow all addons and their accompanying files
 !tf2/tf/addons/**
-!web/**
+#!tf2/bin/libtier0_s.so
+#!tf2/bin/libvstdlib_s.so
+#!tf2/bin/steamclient.so
 # Don't allow logs
 tf2/tf/addons/sourcemod/logs/**
 
