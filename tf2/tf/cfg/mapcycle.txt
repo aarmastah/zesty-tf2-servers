@@ -6,7 +6,7 @@ cp_powerhouse
 cp_vanguard
 cp_yukon_final
 cp_dustbowl
-cp_gorge
+cp_george_rc5
 cp_mercenarypark
 cp_mountainlab
 cp_steel
