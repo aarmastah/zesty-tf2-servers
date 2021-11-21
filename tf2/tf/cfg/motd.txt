@@ -3,6 +3,7 @@ Welcome to Zesty's Server(s)!
 Rule: Don't cheat.
 General advice: Treat others how YOU want to be treated. 
 Abide by these two things and you're welcome here.
+If you can't join a team, type "retry" in console.
 
 Our map rotation is:
 
@@ -22,7 +23,6 @@ cp_junction
 
 pl_badwater
 pl_barnblitz
-pl_borneo
 pl_cactuscanyon
 pl_enclosure_final
 pl_frontier_final
