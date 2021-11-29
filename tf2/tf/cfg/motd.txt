@@ -3,7 +3,10 @@ Welcome to Zesty's Server(s)!
 Rule: Don't cheat.
 General advice: Treat others how YOU want to be treated. 
 Abide by these two things and you're welcome here.
+
 If you can't join a team, type "retry" in console.
+
+
 
 Our map rotation is:
 
@@ -20,6 +23,7 @@ cp_mercenarypark
 cp_mountainlab
 cp_steel
 cp_junction
+cp_snowplow
 
 pl_badwater
 pl_barnblitz
