@@ -12,6 +12,7 @@ cp_mountainlab
 cp_steel
 cp_junction
 cp_snowplow
+cp_altitude
 
 pl_badwater
 pl_barnblitz
@@ -39,7 +40,16 @@ koth_nucleus
 koth_probed
 koth_sawmill
 koth_viaduct
+koth_cascade
 
 pd_watergate
 
 tc_hydro
+
+
+
+
+ctf_doublecross_snowy
+pl_chilly
+pl_coal_event
+pl_breadspace
