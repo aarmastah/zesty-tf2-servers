@@ -57,11 +57,3 @@ koth_cascade
 pd_watergate
 
 tc_hydro
-
-
-
-Seasonal Maps:
-ctf_doublecross_snowy
-pl_chilly
-pl_coal_event
-pl_breadspace
