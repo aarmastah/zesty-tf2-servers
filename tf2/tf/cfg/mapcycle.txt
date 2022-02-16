@@ -23,7 +23,6 @@ pl_goldrush
 pl_hoodoo_final
 pl_pier
 pl_snowycoast
-pl_swiftwater_final1
 pl_thundermountain
 pl_upward
 
