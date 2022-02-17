@@ -18,11 +18,11 @@ cp_powerhouse
 cp_vanguard
 cp_yukon_final
 cp_dustbowl
-cp_gorge
+cp_george
 cp_mercenarypark
 cp_mountainlab
 cp_steel
-cp_junction
+cp_junction_clipped
 cp_snowplow
 cp_altitude
 

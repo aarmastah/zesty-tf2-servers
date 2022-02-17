@@ -10,7 +10,7 @@ cp_george_rc6
 cp_mercenarypark
 cp_mountainlab
 cp_steel
-cp_junction
+cp_junction_clipped_rc2
 cp_snowplow
 cp_altitude
 
