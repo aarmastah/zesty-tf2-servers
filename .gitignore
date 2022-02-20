@@ -44,4 +44,4 @@ tf2/tf/addons/sourcemod/logs/**
 
 # Allow some custom map replacements
 !tf2/tf/maps/cp_george_rc6.bsp
-!tf2/tf/maps/cp_junction_clipped_rc2.bsp
+!tf2/tf/maps/cp_junction_clipped_rc3.bsp
