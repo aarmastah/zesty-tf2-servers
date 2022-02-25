@@ -2,11 +2,11 @@
 {
 	"NativeVotes Revote"
 	{
-		"en"	"Revoting..."
+		"chi"	"重新投票中..."
 	}
 	
 	"NativeVotes Revote No Time"
 	{
-		"en"	"Not enough time to revote"
+		"chi"	"没有足够的时间重新投票"
 	}
 }
